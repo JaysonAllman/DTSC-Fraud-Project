@@ -120,6 +120,10 @@ def find_keywords_and_sentences(text):
 CSV_FILE = "pdf_summaries.csv"
 
 urls = {
+    2020: "https://www.ic3.gov/CSA/2020",
+    2021: "https://www.ic3.gov/CSA/2021",
+    2022: "https://www.ic3.gov/CSA/2022",
+    2023: "https://www.ic3.gov/CSA/2023",
     2024: "https://www.ic3.gov/CSA/2024",
     2025: "https://www.ic3.gov/CSA/2025"
 }
