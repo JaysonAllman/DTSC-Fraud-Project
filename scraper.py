@@ -6,10 +6,10 @@ import fitz  # PyMuPDF
 import pandas as pd
 from datetime import datetime
 from urllib.parse import urljoin
+import json
+from keywords import FRAUD_REGEX  
 
-from crime_keywords import FRAUD_REGEX  # keep original import
-
-PDF_FOLDER = "pdfs"  # keep original folder
+PDF_FOLDER = "pdfs"  
 
 # -------------------------------
 # Helper functions
@@ -17,10 +17,14 @@ PDF_FOLDER = "pdfs"  # keep original folder
 
 def get_quarter(date):
     month = date.month
-    if month <= 3: return 1
-    elif month <= 6: return 2
-    elif month <= 9: return 3
-    else: return 4
+    if month <= 3:
+        return 1
+    elif month <= 6:
+        return 2
+    elif month <= 9:
+        return 3
+    else:
+        return 4
 
 def is_meaningful_sentence(sentence: str) -> bool:
     s = sentence.strip()
@@ -119,7 +123,7 @@ def find_keywords_and_sentences(text):
 # Main pipeline
 # -------------------------------
 
-CSV_FILE = "pdf_summaries.csv"
+CSV_FILE = "pdf_summaries_supabase.csv"
 
 urls = {
     2020: "https://www.ic3.gov/CSA/2020",
@@ -156,12 +160,12 @@ for year, page_url in urls.items():
             "title": entry["title"],
             "date": entry["date"].strftime("%Y-%m-%d"),
             "quarter": get_quarter(entry["date"]),
-            "fraud_type_counts": fraud_counts,
-            "keyword_counts": keyword_counts,
+            "fraud_type_counts": json.dumps(fraud_counts),   # JSONB-ready
+            "keyword_counts": json.dumps(keyword_counts),   # JSONB-ready
             "summary": summary
         }
         all_rows.append(row)
 
 df = pd.DataFrame(all_rows)
 df.to_csv(CSV_FILE, index=False)
-print(f"\n✅ CSV created: {CSV_FILE} ({len(df)} entries)")
+print(f"\n✅ Supabase-ready CSV created: {CSV_FILE} ({len(df)} entries)")

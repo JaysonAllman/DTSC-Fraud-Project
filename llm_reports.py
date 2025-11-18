@@ -3,31 +3,33 @@ import pandas as pd
 from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
-import math
 
+# -------------------------------
 # Load environment variables
+# -------------------------------
 load_dotenv()
-
-# Get API key
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("❌ OPENAI_API_KEY not found in .env file!")
 
-# Initialize OpenAI client
 client = OpenAI(api_key=api_key)
 
-# Load your CSV file
-df = pd.read_csv("pdf_summaries.csv")
+# -------------------------------
+# Load CSV
+# -------------------------------
+df = pd.read_csv("pdf_summaries_supabase.csv")
 
 # Ensure date column is parsed properly
 df["date"] = pd.to_datetime(df["date"], errors="coerce")
 df = df.dropna(subset=["date"])
 
-# Extract month, quarter, and year
-df["month"] = df["date"].dt.month
-df["year"] = df["date"].dt.year
+# Extract quarter and year
 df["quarter"] = df["date"].dt.quarter
+df["year"] = df["date"].dt.year
 
+# -------------------------------
+# Text chunking
+# -------------------------------
 def chunk_text(text, max_chars=15000):
     """Split text into smaller chunks to avoid exceeding LLM limits."""
     sentences = text.split(". ")
@@ -43,21 +45,24 @@ def chunk_text(text, max_chars=15000):
         chunks.append(current_chunk.strip())
     return chunks
 
+# -------------------------------
+# LLM Summary Generation
+# -------------------------------
 def generate_readable_summary(text, period_label):
     """Ask LLM to create a readable intelligence-style summary paragraph."""
     messages = [
         {
             "role": "system",
             "content": (
-                "You are a cyber intelligence analyst writing monthly and yearly fraud summaries. "
-                "Use natural language and full sentences, not bullet points. "
+                "You are a cyber intelligence analyst writing quarterly, yearly, and overall fraud summaries. "
+                "Use full sentences, natural language, not bullet points. "
                 "Summarize key trends, recurring fraud types, and emerging threats clearly."
             ),
         },
         {
             "role": "user",
             "content": f"""
-Summarize the following text into a professional summary for {period_label}.
+Summarize the following text for {period_label}.
 Keep it concise (1–2 short paragraphs).
 
 TEXT:
@@ -82,9 +87,14 @@ def summarize_large_text(text, period_label):
     for i, chunk in enumerate(chunks):
         partial = generate_readable_summary(chunk, f"{period_label} (part {i+1})")
         partial_summaries.append(partial)
-    combined_summary = generate_readable_summary(" ".join(partial_summaries), f"final summary for {period_label}")
+    combined_summary = generate_readable_summary(
+        " ".join(partial_summaries), f"final summary for {period_label}"
+    )
     return combined_summary
 
+# -------------------------------
+# Combine and summarize
+# -------------------------------
 def combine_and_summarize(df, groupby_cols, label_func):
     """Combine text by group and generate summaries."""
     reports = []
@@ -94,16 +104,10 @@ def combine_and_summarize(df, groupby_cols, label_func):
         if len(combined_text.strip()) < 100:
             continue
         summary = summarize_large_text(combined_text, period_label=label)
-        reports.append((label, summary))
+        reports.append({"period": label, "summary": summary})
     return reports
 
 # --- Generate reports ---
-monthly_reports = combine_and_summarize(
-    df,
-    ["year", "month"],
-    lambda g: datetime(g[0], g[1], 1).strftime("%B %Y"),
-)
-
 quarterly_reports = combine_and_summarize(
     df,
     ["year", "quarter"],
@@ -116,25 +120,15 @@ yearly_reports = combine_and_summarize(
     lambda g: str(g[0]),
 )
 
-# --- Overall summary ---
 overall_text = " ".join(df["summary"].astype(str).tolist())
 overall_summary = summarize_large_text(overall_text, "the overall 2020–2025 period")
+overall_reports = [{"period": "Overall 2020–2025", "summary": overall_summary}]
 
-# --- Save all summaries to file ---
-with open("fraud_reports.txt", "w", encoding="utf-8") as f:
-    f.write("=== Monthly Summaries ===\n\n")
-    for label, summary in monthly_reports:
-        f.write(f"## {label}\n{summary}\n\n")
+# -------------------------------
+# Save all summaries to CSV (Supabase-ready)
+# -------------------------------
+all_reports = quarterly_reports + yearly_reports + overall_reports
+output_df = pd.DataFrame(all_reports)
+output_df.to_csv("fraud_reports_supabase.csv", index=False)
 
-    f.write("\n=== Quarterly Summaries ===\n\n")
-    for label, summary in quarterly_reports:
-        f.write(f"## {label}\n{summary}\n\n")
-
-    f.write("\n=== Yearly Summaries ===\n\n")
-    for label, summary in yearly_reports:
-        f.write(f"## {label}\n{summary}\n\n")
-
-    f.write("\n=== Overall Report ===\n\n")
-    f.write(overall_summary)
-
-print("✅ All summaries generated and saved in fraud_reports.txt")
+print("✅ Quarterly, yearly, and overall summaries generated in fraud_reports_supabase.csv")
