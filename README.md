@@ -1,53 +1,50 @@
 DTSC Fraud Project – README
-1. Project Overview
-This project analyzes fraud keyword data extracted from IC3 PDF summaries. The Streamlit dashboard visualizes top fraud keywords, trends over time, and allows CSV downloads. Data is stored in a Supabase PostgreSQL database.
 
-2. Authors
-• Team Member 1: Taylor Foster
-• Team Member 2: Jayson Allman
-• Team Member 3: Yousef Eddin
-• Team Member 4: Sam McClure
+Overview
 
-3. Project Structure
-• app.py – Streamlit dashboard
-• loader.py – Inserts keyword data into Supabase
-• scraper.py – Extracts text from PDFs (optional)
-• crime_keywords.py – Keyword logic
-• pdf_summaries.csv – Extracted summary dataset
-• requirements.txt – Python dependencies
-• .env – Local Supabase credentials (not included in repo)
+This project extracts fraud-related keywords from IC3 reports, stores them in a Supabase database, and visualizes trends through a Streamlit dashboard. The system provides insights into the most common fraud types across multiple years.
 
-4. Installation
-1. Clone the repository:
-   git clone https://github.com/JaysonAllman/DTSC-Fraud-Project.git
+Features
 
-2. Navigate to the project folder:
-   cd DTSC-Fraud-Project
+• Connects securely to Supabase using .env file.
+• Processes fraud keywords from uploaded PDF summaries.
+• Visualizes trends with bar charts, line graphs, and heatmaps.
+• Provides keyword definitions and real‑world impacts.
+• Includes CSV download functionality.
+• Contains a full AI‑generated summary of trends.
 
-3. Install dependencies:
-   pip install -r requirements.txt
+Files in Repository
 
-5. Environment Variables
-Create a .env file in the root directory:
+• app_local.py – Local version with .env support.
+• app.py – Cloud deployment version for Streamlit.
+• requirements.txt – Dependencies for running the project.
+• test_supabase_select.py – Supabase connection tester.
 
-SUPABASE_URL="your-url-here"
-SUPABASE_KEY="your-service-role-key-here"
+How to Run Locally
 
-These values must also be added to Streamlit Cloud under 'Secrets'.
-6. Running Locally
-Run the Streamlit app:
-    streamlit run app.py
+1. Install Python 3.10 or above.
+2. Install dependencies: pip install -r requirements.txt
+3. Create a .env file in the project folder with SUPABASE_URL and SUPABASE_SERVICE_KEY.
+4. Run the dashboard: streamlit run app_local.py
 
-7. Deployment Instructions (Streamlit Cloud)
-1. Push code to GitHub.
-2. Go to https://share.streamlit.io
-3. Select 'New app' and choose this repository.
-4. Set app file to app.py.
-5. Add secrets in Settings → Secrets:
-   SUPABASE_URL="..."
-   SUPABASE_KEY="..."
-6. Deploy the application.
-8. Data Flow
-• scraper.py extracts summaries → pdf_summaries.csv
-• loader.py sends structured keyword data to Supabase
-• app.py pulls data from Supabase → displays charts
+Deployment
+
+The dashboard deploys automatically on Streamlit Cloud whenever changes are pushed to the GitHub repository. Ensure the deployment file is named app.py.
+Authors
+
+This project was created by:
+
+- Taylor Foster
+- Sam McClure
+- Jayson Allman
+- Yousef Eddin
+
+
+
+Streamlit Deployment
+
+The project is deployed on Streamlit Cloud and updates automatically whenever changes are pushed to the GitHub repository. The live dashboard can be accessed at:
+
+https://dtsc-fraud-project-team2.streamlit.app
+
+To deploy manually, ensure your deployment file is named 'app.py' and located in the root of the repository. Streamlit Cloud detects this file and runs the app upon deployment.
