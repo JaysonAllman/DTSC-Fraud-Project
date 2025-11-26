@@ -46,36 +46,40 @@ def parse_json_field(field: Any) -> Dict:
 def fetch_pdf_summaries() -> pd.DataFrame:
     """Fetch all rows from pdf_summaries table and convert to DataFrame."""
     res = supabase.table("pdf_summaries").select("*").execute()
-    if res.error:
-        st.error(f"Error fetching pdf_summaries: {res.error.message if hasattr(res.error,'message') else res.error}")
+
+    if res.data is None:
+        st.error(f"Error fetching pdf_summaries. Status code: {res.status_code}")
         return pd.DataFrame()
-    rows = res.data or []
-    df = pd.DataFrame(rows)
+
+    df = pd.DataFrame(res.data)
     if df.empty:
         return df
 
-    # Parse date, json fields
+    # Parse date
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"])
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["quarter"] = df["date"].dt.quarter
 
-    # Normalize fraud_type_counts and keyword_counts to dicts
+    # Normalize JSON fields
     df["fraud_type_counts_parsed"] = df["fraud_type_counts"].apply(parse_json_field)
     df["keyword_counts_parsed"] = df["keyword_counts"].apply(parse_json_field)
+
     return df
 
 def fetch_fraud_reports() -> pd.DataFrame:
     """Fetch LLM reports (fraud_reports table)."""
     res = supabase.table("fraud_reports").select("*").execute()
-    if res.error:
-        st.error(f"Error fetching fraud_reports: {res.error}")
+
+    if res.data is None:
+        st.error(f"Error fetching fraud_reports. Status code: {res.status_code}")
         return pd.DataFrame()
-    rows = res.data or []
-    df = pd.DataFrame(rows)
+
+    df = pd.DataFrame(res.data)
     if df.empty:
         return df
+
     df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
     return df
 
