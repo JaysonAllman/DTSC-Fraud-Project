@@ -45,6 +45,6 @@ Streamlit Deployment
 
 The project is deployed on Streamlit Cloud and updates automatically whenever changes are pushed to the GitHub repository. The live dashboard can be accessed at:
 
-https://dtsc-fraud-project-team2.streamlit.app
+[https://dtsc-fraud-project-team2.streamlit.app](https://dtsc-fraud-project-kzrjrxxgxdnc7kvanirkao.streamlit.app/)
 
 To deploy manually, ensure your deployment file is named 'app.py' and located in the root of the repository. Streamlit Cloud detects this file and runs the app upon deployment.
