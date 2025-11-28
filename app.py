@@ -238,7 +238,7 @@ def get_llm_report_for_period(reports_df: pd.DataFrame, selection_mode: str, sel
 # UI
 # ---------------------------
 st.set_page_config(page_title="Fraud Trends Dashboard", layout="wide")
-st.title("Fraud Trends Dashboard (Supabase → Streamlit)")
+st.title("Fraud Trends Dashboard")
 
 # Load data once (caching)
 @st.cache_data(ttl=300)
@@ -326,7 +326,7 @@ with col1:
         st.altair_chart(chart, use_container_width=True)
 
 with col2:
-    st.subheader(f"Top {topk} Keywords (selected period)")
+    st.subheader(f"Top {topk} Keywords")
     top_keywords = get_top_keywords(keyword_totals, top_k:=topk)
     if not top_keywords:
         st.write("No keyword data available for the selected period.")
@@ -336,7 +336,7 @@ with col2:
 
 # LLM report / narrative
 st.markdown("---")
-st.subheader("AI Narrative (from fraud_reports table)")
+st.subheader("AI Narrative")
 llm_text = get_llm_report_for_period(reports_df, "All" if selection_mode=="All" else selection_mode, selection_value)
 if not llm_text:
     st.info("No LLM narrative found for the selected period. You can generate one and store it in the fraud_reports table.")
