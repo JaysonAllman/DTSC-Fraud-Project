@@ -321,7 +321,9 @@ with col1:
             x=alt.X("period_dt:T", title="Period"),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
-            tooltip=["period:N", "fraud_type:N", "count:Q"]
+            tooltip=[alt.Tooltip("period_dt:T", title="Period"),
+        alt.Tooltip("fraud_type:N", title="Fraud Type"),
+        alt.Tooltip("count:Q", title="Count")]
         ).properties(width=900, height=420)
         st.altair_chart(chart, use_container_width=True)
 
