@@ -152,21 +152,22 @@ def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> p
     rows = []
     # expand per-row fraud_type_counts to per-row dict
     for _, r in df.iterrows():
-        dt = r["date"]
-        if agg == "month":
-            label = dt.strftime("%Y-%m")
-        elif agg == "quarter":
-            label = f"{dt.year}-Q{r['quarter']}"
-        else:
-            label = str(dt.year)
-        totals = {}
-        for k, v in (r["fraud_type_counts_parsed"] or {}).items():
-            try:
-                c = int(v)
-            except Exception:
-                c = 0
-            totals[k] = totals.get(k, 0) + c
-        rows.append({"period": label, **totals})
+    dt = r["date"]
+    quarter = int(r['quarter']) if pd.notnull(r['quarter']) else 1  # fallback to Q1 if missing
+    if agg == "month":
+        label = dt.strftime("%Y-%m")
+    elif agg == "quarter":
+        label = f"{dt.year}-Q{quarter}"
+    else:
+        label = str(dt.year)
+    totals = {}
+    for k, v in (r["fraud_type_counts_parsed"] or {}).items():
+        try:
+            c = int(v)
+        except Exception:
+            c = 0
+        totals[k] = totals.get(k, 0) + c
+    rows.append({"period": label, **totals})
 
     if not rows:
         return pd.DataFrame()
