@@ -145,47 +145,66 @@ def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any
 
 def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> pd.DataFrame:
     """
-    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year)
-    We will sum fraud_type_counts across rows for each period and return DataFrame with
-    columns: period_label, fraud_type1, fraud_type2, ...
+    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year).
+    Never produces NaN / invalid period labels.
     """
     rows = []
-    # expand per-row fraud_type_counts to per-row dict
-    for _, r in df.iterrows():
-    dt = r["date"]
-    quarter = int(r['quarter']) if pd.notnull(r['quarter']) else 1  # fallback to Q1 if missing
-    if agg == "month":
-        label = dt.strftime("%Y-%m")
-    elif agg == "quarter":
-        label = f"{dt.year}-Q{quarter}"
-    else:
-        label = str(dt.year)
-    totals = {}
-    for k, v in (r["fraud_type_counts_parsed"] or {}).items():
-        try:
-            c = int(v)
-        except Exception:
-            c = 0
-        totals[k] = totals.get(k, 0) + c
-    rows.append({"period": label, **totals})
 
+    # Build per-row dicts
+    for _, r in df.iterrows():
+        dt = r["date"]
+
+        if pd.isnull(dt):
+            continue  # skip rows with missing dates
+
+        # Quarter fix: always an integer 1–4
+        quarter = int(r["quarter"]) if pd.notnull(r["quarter"]) else ((dt.month - 1) // 3 + 1)
+
+        # Label formats
+        if agg == "month":
+            label = dt.strftime("%Y-%m")
+
+        elif agg == "quarter":
+            label = f"{dt.year}-Q{quarter}"
+
+        else:  # yearly
+            label = str(dt.year)
+
+        # Expand fraud_type_counts
+        totals = {}
+        for k, v in (r["fraud_type_counts_parsed"] or {}).items():
+            try:
+                c = int(v)
+            except Exception:
+                c = 0
+            totals[k] = totals.get(k, 0) + c
+
+        rows.append({"period": label, **totals})
+
+    # If no rows → return empty df
     if not rows:
         return pd.DataFrame()
 
     ts_df = pd.DataFrame(rows).fillna(0)
-    # group by period label and sum
+
+    # Group by period
     grouped = ts_df.groupby("period").sum().reset_index()
-    # Find global top fraud types (top_n) across the whole period
-    if grouped.shape[0] == 0:
+
+    if grouped.empty:
         return grouped
+
+    # Determine the top N fraud types
     totals_all = grouped.drop(columns=["period"]).sum().sort_values(ascending=False)
     top_types = list(totals_all.head(top_n).index)
-    # restrict grouped to period + top types
+
+    # Return only period + top types
     cols = ["period"] + top_types
     result = grouped[cols].sort_values("period")
-    # ensure numeric
+
+    # Ensure integer columns
     for c in top_types:
         result[c] = result[c].astype(int)
+
     return result
 
 def get_top_keywords(keyword_totals: Dict[str,int], top_n: int = 5) -> List[Tuple[str,int]]:
