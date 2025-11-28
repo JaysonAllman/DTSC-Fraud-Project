@@ -145,32 +145,20 @@ def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any
 
 def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> pd.DataFrame:
     """
-    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year).
-    Never produces NaN / invalid period labels.
+    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year)
+    We will sum fraud_type_counts across rows for each period and return DataFrame with
+    columns: period_label, fraud_type1, fraud_type2, ...
     """
     rows = []
-
-    # Build per-row dicts
+    # expand per-row fraud_type_counts to per-row dict
     for _, r in df.iterrows():
         dt = r["date"]
-
-        if pd.isnull(dt):
-            continue  # skip rows with missing dates
-
-        # Quarter fix: always an integer 1–4
-        quarter = int(r["quarter"]) if pd.notnull(r["quarter"]) else ((dt.month - 1) // 3 + 1)
-
-        # Label formats
         if agg == "month":
             label = dt.strftime("%Y-%m")
-
         elif agg == "quarter":
-            label = f"{dt.year}-Q{quarter}"
-
-        else:  # yearly
+            label = f"{dt.year}-Q{r['quarter']}"
+        else:
             label = str(dt.year)
-
-        # Expand fraud_type_counts
         totals = {}
         for k, v in (r["fraud_type_counts_parsed"] or {}).items():
             try:
@@ -178,33 +166,25 @@ def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> p
             except Exception:
                 c = 0
             totals[k] = totals.get(k, 0) + c
-
         rows.append({"period": label, **totals})
 
-    # If no rows → return empty df
     if not rows:
         return pd.DataFrame()
 
     ts_df = pd.DataFrame(rows).fillna(0)
-
-    # Group by period
+    # group by period label and sum
     grouped = ts_df.groupby("period").sum().reset_index()
-
-    if grouped.empty:
+    # Find global top fraud types (top_n) across the whole period
+    if grouped.shape[0] == 0:
         return grouped
-
-    # Determine the top N fraud types
     totals_all = grouped.drop(columns=["period"]).sum().sort_values(ascending=False)
     top_types = list(totals_all.head(top_n).index)
-
-    # Return only period + top types
+    # restrict grouped to period + top types
     cols = ["period"] + top_types
     result = grouped[cols].sort_values("period")
-
-    # Ensure integer columns
+    # ensure numeric
     for c in top_types:
         result[c] = result[c].astype(int)
-
     return result
 
 def get_top_keywords(keyword_totals: Dict[str,int], top_n: int = 5) -> List[Tuple[str,int]]:
@@ -374,8 +354,31 @@ else:
 
 # Footer / tips
 st.markdown("""
-**Notes & tips**
-- The `pdf_summaries` table should contain JSONB `fraud_type_counts` and `keyword_counts` where `keyword_counts` is nested dictionaries per fraud type (e.g., `{"Malware":{"malware":5,"trojan":1}, "Phishing":{"phishing":2}}`).
-- If you want to display monthly charts across wide year ranges, choose `month` resolution; for compact year-to-year comparisons, use `year`.
-- To add or update LLM narratives, insert rows into `fraud_reports(period, summary)`.
+**Definitions**
+- Advanced Fee Fraud: An individual pays money to someone in anticipation of receiving something of greater value in return, but instead, receives significantly less than expected or nothing.
+- Business Email Compromise (BEC): BEC is a scam targeting businesses or individuals working with suppliers and/or businesses regularly performing wire transfer payments. These sophisticated scams are carried out by fraudsters by compromising email accounts and other forms of communication such as phone numbers and virtual meeting applications, through social engineering or computer intrusion techniques to conduct unauthorized transfer of funds.
+- Botnet: A botnet is a group of two or more computers controlled and updated remotely for an illegal purchase such as a Distributed Denial of Service or Telephony Denial of Service attack or other nefarious activity.
+- Confidence/Romance Fraud: An individual believes they are in a relationship (family, friendly, or romantic) and are tricked into sending money, personal and financial information, or items of value to the perpetrator or to launder money or items to assist the perpetrator. This includes the Grandparent’s Scheme and any scheme in which the perpetrator preys on the targeted individual’s “heartstrings.”
+- Credit Card Fraud/Check Fraud: Credit card fraud is a wide-ranging term for theft and fraud committed using a credit card or any similar payment mechanism (ACH, EFT, recurring charge, etc.) as a fraudulent source of funds in a transaction.
+- Crimes Against Children: Anything related to the exploitation of children, including child abuse. 
+- Data Breach: A data breach in the cyber context is the use of a computer intrusion to acquire confidential or secured information. This does not include computer intrusions targeting personally owned computers, systems, devices, or personal accounts such as social media or financial accounts.
+- Employment Fraud: An individual believes they are legitimately employed and loses money, or launders money/items during their employment.
+- Extortion: Unlawful extraction of money or property through intimidation or undue exercise of authority. It may include threats of physical harm, criminal prosecution, or public exposure. 
+- Government Impersonation: A government official is impersonated to collect or extort money. 
+- Harassment/Stalking: Repeated words, conduct, and/or action that serve no legitimate purpose and are directed at a specific person to annoy, alarm, or distress that person. Engaging in a course of conduct directed at a specific person that would cause a reasonable person to fear for his/her safety or the safety of others or suffer substantial emotional distress.
+- Identity Theft: Someone wrongfully obtains and uses personally identifiable information in some way that involves fraud or deception, typically for economic gain. 
+- Investment Fraud: Deceptive practice that induces investors to make purchases based on false information. These scams usually offer those targeted large returns with minimal risk. (Retirement, 401K, Ponzi, Pyramid, etc.).
+- Intellectual Property Rights (IPR)/Copyright and Counterfeit: The illegal theft and use of others’ ideas, inventions, and creative expressions – what’s called intellectual property – everything from trade secrets and proprietary products and parts to movies, music, and software. 
+- Lottery/Sweepstakes/Inheritance Fraud: An individual is contacted about winning a lottery or sweepstakes they never entered, or to collect on an inheritance from an unknown relative.
+- Malware: Software or code intended to damage, disable, or capable of copying itself onto a computer and/or computer systems to have a detrimental effect or destroy data. 
+- Non-Payment/Non-Delivery Fraud: Goods or services are shipped, and payment is never rendered (nonpayment). Payment is sent, and goods or services are never received, or are of lesser quality (nondelivery).
+- Overpayment: An individual is sent a payment/commission and is instructed to keep a portion of the payment and send the remainder to another individual or business.
+- Personal Data Breach: A leak/spill of personal data which is released from a secure location to an untrusted environment. Also, a security incident in which an individual’s sensitive, protected, or confidential data is copied, transmitted, viewed, stolen, or used by an unauthorized individual.
+- Phishing/Spoofing: The use of unsolicited email, text messages, and telephone calls purportedly from a legitimate company requesting personal, financial, and/or login credentials. 
+- Ransomware: A type of malicious software designed to block access to a computer system until money is paid. 
+- Real Estate Fraud: Loss of funds from a real estate investment or fraud involving rental or timeshare property.
+- SIM Swap: The use of unsophisticated social engineering techniques against mobile service providers to transfer a victim’s phone service to a mobile device in the criminal’s possession.
+- Tech Support Fraud: Subject posing as technical or customer support/service.
+- Threats of Violence: An expression of an intention to inflict pain, injury, self-harm, or death not in the context of extortion. 
+Information provided by: Internet Crime Complaint Center (IC3). “Internet Crime Complaint Center(IC3) | Annual Crime Report 2024.” Www.ic3.Gov, 2024, www.ic3.gov/.
 """)
