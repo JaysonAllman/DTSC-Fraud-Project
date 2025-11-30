@@ -3,4 +3,9 @@ pandas
 python-dotenv
 supabase
 matplotlib
-
+numpy
+altair
+beautifulsoup4
+requests
+PyMuPDF
+openai
