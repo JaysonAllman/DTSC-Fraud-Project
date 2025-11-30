@@ -121,68 +121,44 @@ def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str, int]:
             totals[term] = totals.get(term, 0) + int(count)
     return totals
 
-# ---------------------------
-# Helper: normalize date to period start
-# ---------------------------
-def period_start(dt: pd.Timestamp, agg: str = "quarter") -> pd.Timestamp:
-    """
-    Return the first date of the period containing dt
-    agg: 'month', 'quarter', or 'year'
-    """
-    if agg == "month":
-        return dt.replace(day=1)
-    elif agg == "quarter":
-        q = (dt.month - 1) // 3 + 1
-        month_start = (q - 1) * 3 + 1
-        return dt.replace(month=month_start, day=1)
-    else:  # year
-        return dt.replace(month=1, day=1)
-
-# ---------------------------
-# Filter dataframe by period selection
-# ---------------------------
 def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any) -> pd.DataFrame:
+    """
+    selection_mode: one of "All", "Year", "Quarter", "MonthRange"
+    selection_value:
+      - "All": ignored
+      - "Year": int year
+      - "Quarter": tuple (year, quarter) e.g. (2020, 3)
+      - "MonthRange": tuple (start_date, end_date) as datetime
+    """
     if selection_mode == "All":
         return df.copy()
-
     if selection_mode == "Year":
-        year = int(selection_value)
-        # Include all dates whose period_start in year matches
-        return df[df["date"].apply(lambda dt: period_start(dt, "year").year == year)].copy()
-
+        year = selection_value
+        return df[df["year"] == int(year)].copy()
     if selection_mode == "Quarter":
         year, q = selection_value
-        def in_quarter(dt):
-            start = period_start(dt, "quarter")
-            q_start = (q - 1) * 3 + 1
-            return start.year == year and start.month == q_start
-        return df[df["date"].apply(in_quarter)].copy()
-
+        return df[(df["year"] == int(year)) & (df["quarter"] == int(q))].copy()
     if selection_mode == "MonthRange":
         start, end = selection_value
         return df[(df["date"] >= start) & (df["date"] <= end)].copy()
-
     return df.copy()
 
-# ---------------------------
-# Aggregate timeseries by period
-# ---------------------------
-def timeseries_by_period(df: pd.DataFrame, agg: str = "quarter", top_n: int = 5) -> pd.DataFrame:
+def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> pd.DataFrame:
+    """
+    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year)
+    We will sum fraud_type_counts across rows for each period and return DataFrame with
+    columns: period_label, fraud_type1, fraud_type2, ...
+    """
     rows = []
-
+    # expand per-row fraud_type_counts to per-row dict
     for _, r in df.iterrows():
-        dt = period_start(r["date"], agg)
-
-        # Build period label
+        dt = r["date"]
         if agg == "month":
             label = dt.strftime("%Y-%m")
         elif agg == "quarter":
-            q = (dt.month - 1) // 3 + 1
-            label = f"{dt.year}-Q{q}"
-        else:  # year
+            label = f"{dt.year}-Q{r['quarter']}"
+        else:
             label = str(dt.year)
-
-        # Sum fraud_type_counts per row
         totals = {}
         for k, v in (r["fraud_type_counts_parsed"] or {}).items():
             try:
@@ -190,32 +166,25 @@ def timeseries_by_period(df: pd.DataFrame, agg: str = "quarter", top_n: int = 5)
             except Exception:
                 c = 0
             totals[k] = totals.get(k, 0) + c
-
         rows.append({"period": label, **totals})
 
     if not rows:
         return pd.DataFrame()
 
     ts_df = pd.DataFrame(rows).fillna(0)
-
-    # Group by period label and sum
+    # group by period label and sum
     grouped = ts_df.groupby("period").sum().reset_index()
-
+    # Find global top fraud types (top_n) across the whole period
     if grouped.shape[0] == 0:
         return grouped
-
-    # Get top N fraud types across the whole period
     totals_all = grouped.drop(columns=["period"]).sum().sort_values(ascending=False)
     top_types = list(totals_all.head(top_n).index)
-
-    # Keep only period + top types
+    # restrict grouped to period + top types
     cols = ["period"] + top_types
     result = grouped[cols].sort_values("period")
-
-    # Ensure numeric
+    # ensure numeric
     for c in top_types:
         result[c] = result[c].astype(int)
-
     return result
 
 def get_top_keywords(keyword_totals: Dict[str,int], top_n: int = 5) -> List[Tuple[str,int]]:
@@ -347,9 +316,9 @@ with col1:
                 return datetime(int(p), 1, 1)
             except Exception:
                 return datetime(1970,1,1)
-        melted_sorted = melted.sort_values(by="period", key=lambda s: s.map(period_sort_key))
-        chart = alt.Chart(melted_sorted).mark_line(point=True).encode(
-            x=alt.X("period:N", title="Period", sort=list(melted_sorted["period"].unique())),
+        melted["period_dt"] = melted["period"].apply(period_sort_key)
+        chart = alt.Chart(melted).mark_line(point=True).encode(
+            x=alt.X("period_dt:T", title="Period"),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
             tooltip=[alt.Tooltip("period_dt:T", title="Period"),
