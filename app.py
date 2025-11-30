@@ -316,9 +316,9 @@ with col1:
                 return datetime(int(p), 1, 1)
             except Exception:
                 return datetime(1970,1,1)
-        melted["period_dt"] = melted["period"].apply(period_sort_key)
+        melted_sorted = melted.sort_values(by="period", key=lambda s: s.map(period_sort_key))
         chart = alt.Chart(melted).mark_line(point=True).encode(
-            x=alt.X("period_dt:T", title="Period"),
+            x=alt.X("period:N", title="Period", sort=list(melted_sorted["period"].unique())),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
             tooltip=[alt.Tooltip("period_dt:T", title="Period"),
