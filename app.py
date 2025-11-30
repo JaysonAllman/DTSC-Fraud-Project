@@ -324,10 +324,8 @@ with col1:
                     ]['date']
 
                     if not match_dates.empty:
-                        # Use earliest date in the actual data for correct ordering
                         return match_dates.min().replace(day=1)
                     else:
-                        # Safe fallback (first month of the quarter)
                         return datetime(y, (q - 1) * 3 + 1, 1)
 
                 # Yearly
@@ -339,8 +337,15 @@ with col1:
         # Apply corrected conversion
         melted["period_dt"] = melted.apply(period_label_to_dt, axis=1)
 
+        # FINAL FIX — force correct YYYY-MM labels on x-axis
         chart = alt.Chart(melted).mark_line(point=True).encode(
-            x=alt.X("period_dt:T", title="Period"),
+            x=alt.X(
+                "period_dt:T",
+                title="Period",
+                axis=alt.Axis(
+                    labelExpr='timeFormat(datum.value, "%Y-%m")'   # << FIXED LABELS
+                )
+            ),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
             tooltip=[
