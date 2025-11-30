@@ -317,7 +317,7 @@ with col1:
             except Exception:
                 return datetime(1970,1,1)
         melted_sorted = melted.sort_values(by="period", key=lambda s: s.map(period_sort_key))
-        chart = alt.Chart(melted.sorted).mark_line(point=True).encode(
+        chart = alt.Chart(melted_sorted).mark_line(point=True).encode(
             x=alt.X("period:N", title="Period", sort=list(melted_sorted["period"].unique())),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
