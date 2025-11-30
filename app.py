@@ -122,27 +122,27 @@ def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str, int]:
     return totals
 
 def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any) -> pd.DataFrame:
+    """
+    selection_mode: one of "All", "Year", "Quarter", "MonthRange"
+    selection_value:
+      - "All": ignored
+      - "Year": int year
+      - "Quarter": tuple (year, quarter) e.g. (2020, 3)
+      - "MonthRange": tuple (start_date, end_date) as datetime
+    """
     if selection_mode == "All":
         return df.copy()
-
     if selection_mode == "Year":
-        year = int(selection_value)
-        start = datetime(year, 1, 1)
-        end = datetime(year + 1, 1, 1)
-        return df[(df["date"] >= start) & (df["date"] < end)].copy()
-
+        year = selection_value
+        return df[df["year"] == int(year)].copy()
     if selection_mode == "Quarter":
         year, q = selection_value
-        start = datetime(year, (q - 1)*3 + 1, 1)
-        end = datetime(year, (q)*3 + 1, 1) if q < 4 else datetime(year+1, 1, 1)
-        return df[(df["date"] >= start) & (df["date"] < end)].copy()
-
+        return df[(df["year"] == int(year)) & (df["quarter"] == int(q))].copy()
     if selection_mode == "MonthRange":
         start, end = selection_value
         return df[(df["date"] >= start) & (df["date"] <= end)].copy()
-
     return df.copy()
-
+    
 def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> pd.DataFrame:
     """
     Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year)
