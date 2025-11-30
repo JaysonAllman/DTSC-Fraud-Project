@@ -301,30 +301,55 @@ with col1:
     else:
         # melt for altair
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
-        # ensure ordering by date: try parse period into sortable ordering
-        def period_sort_key(p):
-            # p formats: YYYY-Qn, YYYY-MM, or YYYY
+
+        # Convert period label to a real datetime using original filtered data
+        def period_label_to_dt(row):
+            p = row['period']
             try:
+                # Monthly format YYYY-MM
+                if "-" in p and len(p.split("-")[1]) == 2:
+                    y, m = p.split("-")
+                    return datetime(int(y), int(m), 1)
+
+                # Quarterly format YYYY-Qn
                 if "-Q" in p:
                     y, q = p.split("-Q")
-                    m = (int(q)-1)*3 + 1
-                    return datetime(int(y), m, 1)
-                if "-" in p and len(p.split("-")[1])==2:
-                    # YYYY-MM
-                    y,m = p.split("-")
-                    return datetime(int(y), int(m), 1)
+                    y = int(y)
+                    q = int(q)
+
+                    # Get ACTUAL dates from your filtered DF for this year+quarter
+                    match_dates = filtered[
+                        (filtered['year'] == y) &
+                        (filtered['quarter'] == q)
+                    ]['date']
+
+                    if not match_dates.empty:
+                        # Use earliest date in the actual data for correct ordering
+                        return match_dates.min().replace(day=1)
+                    else:
+                        # Safe fallback (first month of the quarter)
+                        return datetime(y, (q - 1) * 3 + 1, 1)
+
+                # Yearly
                 return datetime(int(p), 1, 1)
+
             except Exception:
-                return datetime(1970,1,1)
-        melted["period_dt"] = melted["period"].apply(period_sort_key)
+                return datetime(1970, 1, 1)
+
+        # Apply corrected conversion
+        melted["period_dt"] = melted.apply(period_label_to_dt, axis=1)
+
         chart = alt.Chart(melted).mark_line(point=True).encode(
             x=alt.X("period_dt:T", title="Period"),
             y=alt.Y("count:Q", title="Total mentions"),
             color=alt.Color("fraud_type:N", title="Fraud type"),
-            tooltip=[alt.Tooltip("period_dt:T", title="Period"),
-        alt.Tooltip("fraud_type:N", title="Fraud Type"),
-        alt.Tooltip("count:Q", title="Count")]
+            tooltip=[
+                alt.Tooltip("period_dt:T", title="Period"),
+                alt.Tooltip("fraud_type:N", title="Fraud Type"),
+                alt.Tooltip("count:Q", title="Count")
+            ]
         ).properties(width=900, height=420)
+
         st.altair_chart(chart, use_container_width=True)
 
 with col2:
