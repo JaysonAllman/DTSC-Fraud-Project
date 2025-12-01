@@ -65,7 +65,7 @@ DTSC-Fraud-Project/
 ├─ pdfs/                   # Contains the downloaded pdf files
 ├─ requirements.txt        # Dependencies
 ├─ .env                    # Environment variables (not tracked)
-└─ images/                 # Screenshots or GIFs
+└─ images/                 # Screenshots
 </pre>
 
 ## Data Transformation & Workflow
