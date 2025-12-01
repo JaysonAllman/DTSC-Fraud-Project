@@ -26,8 +26,8 @@ source .venv/bin/activate   # Linux/Mac
 uv pip install -r requirements.txt
 ```
 
-Create a .env file
 ### 3. Setup Environment Variables
+- Create a .env file
 - SUPABASE_URL=<your_supabase_url_here>
 - SUPABASE_KEY=<your_supabase_anon_key_here>
 - OPENAI_API_KEY=<your_openai_api_key_here>
