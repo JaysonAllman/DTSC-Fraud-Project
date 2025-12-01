@@ -133,27 +133,24 @@ spearphishing  4
 
 ## 4. Clear Findings
 
-The **Fraud Analysis Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities.
+The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities.
 
 ### Key Insights
 
-- **Most Common Fraud Types:** The dashboard highlights the top fraud types per year, quarter, or custom time range, such as phishing, malware, and extortion.  
+- **Most Common Fraud Types:** The dashboard highlights the top fraud types per year, quarter, or All time, such as phishing, malware, and extortion.  
 - **Keyword Trends:** Keyword aggregation allows tracking of specific fraud-related terms over time. For example, mentions of "phishing" increased from 14 in Jan–Feb 2023 to 170 in 2023 overall.  
 - **LLM Summaries:** AI-generated narratives summarize large volumes of reports, highlighting significant patterns and emerging threats in a human-readable format.  
 
 ### Example Visuals
 
-**Fraud Type Trends Over Time**  
-![Fraud Trends Line Chart](images/Screenshot_2025-11-30_194102.png)  
+**Anaylisis of All Time Fraud Trends**  
 
-**Top Keywords in Selected Period**  
-![Top Keywords List](images/Screenshot_2025-11-30_194353.png)  
 
 ### Why It’s Useful
 
 - Saves **hours of manual report reading** by summarizing key fraud trends automatically.  
 - Provides **actionable insights** to security teams and analysts.  
-- Supports **interactive filtering** by year, quarter, or custom date ranges.  
+- Supports **interactive filtering** by year, quarter, or All time ranges.  
 - Enables **trend visualization** for presentations, reports, or monitoring.
 
 
