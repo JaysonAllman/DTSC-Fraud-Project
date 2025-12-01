@@ -1,11 +1,11 @@
 # Fraud Trends Dashboard
-**Tagline:** Interactive AI-powered insights into fraud patterns from IC3 reports
+**Tagline:** Interactive AI-powered insights into fraud patterns from IC3 industry reports
 
 ## Authors
 - Samuel McClure, Taylor Foster, Jayson Allman and Yousef Eddin  
 
 ## Project Summary
-This project automates the collection, analysis, and summarization of fraud reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
+This project automates the collection, analysis, and summarization of industry reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
 
 ## Quick Start
 
