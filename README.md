@@ -88,3 +88,25 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 | 1   | IC3 Report Jan 2023 | 2023-01-15 | {"Phishing": 10, "Malware": 5}      | {"phishing": 7, "malware": 5} |
 | 2   | IC3 Report Feb 2023 | 2023-02-10 | {"Extortion": 8, "Phishing": 4}     | {"extortion": 8, "phishing": 4} |
 
+🛠 Minimal Example: Transforming Data
+
+**Aggregate fraud type counts across time periods**
+
+```python
+import pandas as pd
+
+# Example data
+df = pd.DataFrame([
+    {"date": "2023-01-15", "fraud_type_counts": {"Phishing": 10, "Malware": 5}},
+    {"date": "2023-02-10", "fraud_type_counts": {"Extortion": 8, "Phishing": 4}}
+])
+
+# Flatten fraud_type_counts
+totals = {}
+for d in df["fraud_type_counts"]:
+    for k, v in d.items():
+        totals[k] = totals.get(k, 0) + v
+
+print(totals)
+# Output: {'Phishing': 14, 'Malware': 5, 'Extortion': 8}
+```
