@@ -50,3 +50,7 @@ graph TD
     D --> E[Supabase: fraud_reports table]
     E --> F[Streamlit Dashboard]
 ```
+
+![Streamlit Dashboard]("C:\Users\jayso\OneDrive\Pictures\Screenshots\Screenshot 2025-11-30 194102.png")
+![Streamlit Dashboard]("C:\Users\jayso\OneDrive\Pictures\Screenshots\Screenshot 2025-11-30 194353.png")
+
