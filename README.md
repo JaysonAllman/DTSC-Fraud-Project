@@ -18,7 +18,7 @@ Follow these steps to get the Fraud Analysis Dashboard running locally.
 git clone https://github.com/JaysonAllman/DTSC-Fraud-Project.git
 cd DTSC-Fraud-Project
 ```
-2. Create a Virtual Environment and Install Dependencies
+### 2. Create a Virtual Environment and Install Dependencies
 ```bash
 uv venv
 source .venv/bin/activate   # Linux/Mac
@@ -31,7 +31,7 @@ SUPABASE_URL=<your_supabase_url_here>
 SUPABASE_KEY=<your_supabase_anon_key_here>
 OPENAI_API_KEY=<your_openai_api_key_here>
 
-4. Run the Streamlit Dashboard
+### 4. Run the Streamlit Dashboard
 ```bash
 uv run streamlit run app.py
 ```
