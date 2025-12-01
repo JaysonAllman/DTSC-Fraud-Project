@@ -1,27 +1,24 @@
 # Fraud Trends Dashboard
+**Tagline:** Interactive AI-powered insights into fraud patterns from IC3 reports
 
-## Team Member
-- Jayson Allman  
-
-**Project for Cybersecurity Data Analysis / Fraud Detection**
-
----
+## Author
+- Samuel McClure, Taylor Foster, Jayson Allman and Yousef Eddin  
 
 ## Project Summary
-This repository contains the **Fraud Trends Dashboard**, which scrapes IC3 reports, extracts fraud-related keywords, and generates AI-powered summaries for interactive visualization of fraud trends across time.
+This project automates the collection, analysis, and summarization of fraud reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
 
-The project helps analysts quickly detect patterns, recurring fraud types, and emerging threats without manually reviewing PDFs.
+## Quick Start
+
+Follow these steps to get the Fraud Analysis Dashboard running locally.
 
 ---
 
-## ⚙️ ETL Pipeline
+### 1. Clone the Repository
+```bash
+git clone https://github.com/JaysonAllman/DTSC-Fraud-Project.git
+cd DTSC-Fraud-Project
 
-The system follows a full **Extract–Transform–Load (ETL)** workflow:
-
-| Stage | Description | Tools Used |
-|-------|------------|------------|
-| **Extract** | Downloads IC3 webpages and PDFs for fraud reports. | `requests`, `BeautifulSoup4`, `PyMuPDF` / `PyPDF2` |
-| **Transform** | Cleans text, detects keywords, flattens nested JSON counts, and standardizes date formats. | `pandas`, `numpy`, `re`, `datetime` |
-| **Load** | Uploads structured data to **Supabase**, storing both summaries and keyword counts. | `supabase-py`, `.env` for credentials |
-
-### 📊 ETL Workflow
+uv venv
+source .venv/bin/activate   # Linux/Mac
+.venv\Scripts\activate      # Windows
+uv pip install -r requirements.txt
