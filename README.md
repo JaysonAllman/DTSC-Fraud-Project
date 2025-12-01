@@ -50,10 +50,5 @@ graph TD
     D --> E[Supabase: fraud_reports table]
     E --> F[Streamlit Dashboard]
 ```
-
-![Dashboard Screenshot 1](images/Screenshot_2025-11-30_194102.png/)
-![Dashboard Screenshot 2](images/Screenshot_2025-11-30_194353.png/)
-
-
-
+https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png
 
