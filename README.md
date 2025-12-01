@@ -51,7 +51,8 @@ graph TD
     E --> F[Streamlit Dashboard]
 ```
 
-![Streamlit Dashboard](Screenshot 2025-11-30 194102.png)
-![Streamlit Dashboard](__pycache__/Screenshot_2025-11-30_194353.png)
+![Dashboard Screenshot 1](images/Screenshot_2025-11-30_194102.png)
+![Dashboard Screenshot 2](images/Screenshot_2025-11-30_194353.png)
+
 
 
