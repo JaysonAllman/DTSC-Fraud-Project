@@ -62,6 +62,7 @@ DTSC-Fraud-Project/
 ├─ keywords.py             # Fraud keyword dictionary & regex
 ├─ llm_reports.py          # Generates LLM summaries
 ├─ loader.py               # Uploads CSV data to Supabase
+├─ pdfs/                   # Contains the downloaded pdf files
 ├─ requirements.txt        # Dependencies
 ├─ .env                    # Environment variables (not tracked)
 └─ images/                 # Screenshots or GIFs
