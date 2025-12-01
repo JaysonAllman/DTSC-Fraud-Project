@@ -79,16 +79,14 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 <img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
+# 🛠 Example: Transforming Data
 📂 Example of Raw Data
-
 **fraud_summaries.csv** (sample rows):
 
 | id  | title               | date       | fraud_type_counts                    | keyword_counts                  |
 |-----|--------------------|------------|-------------------------------------|--------------------------------|
 | 1   | IC3 Report Jan 2023 | 2023-01-15 | {"Phishing": 10, "Malware": 5}      | {"smishing": 10, "trojan": 5} |
 | 2   | IC3 Report Feb 2023 | 2023-02-10 | {"Extortion": 8, "Phishing": 4}     | {"blackmail": 8, "spearphishing": 4} |
-
-# 🛠 Example: Transforming Data
 
 **Aggregate fraud type counts across time periods**
 
