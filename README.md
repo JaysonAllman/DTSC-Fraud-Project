@@ -110,3 +110,24 @@ for d in df["fraud_type_counts"]:
 print(totals)
 # Output: {'Phishing': 14, 'Malware': 5, 'Extortion': 8}
 ```
+
+**Aggregate keyword counts**
+
+```python
+keyword_counts = []
+for d in df["fraud_type_counts"]:
+    for k, v in d.items():
+        keyword_counts.append((k.lower(), v))
+
+keyword_df = pd.DataFrame(keyword_counts, columns=["keyword", "count"])
+keyword_summary = keyword_df.groupby("keyword").sum().reset_index()
+print(keyword_summary)
+
+
+Output:
+
+keyword	count
+phishing	14
+malware	5
+extortion	8
+```
