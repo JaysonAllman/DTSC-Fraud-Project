@@ -51,6 +51,7 @@ graph TD
     E --> F[Streamlit Dashboard]
 ```
 
-![Streamlit Dashboard]("C:\Users\jayso\OneDrive\Pictures\Screenshots\Screenshot 2025-11-30 194102.png")
-![Streamlit Dashboard]("C:\Users\jayso\OneDrive\Pictures\Screenshots\Screenshot 2025-11-30 194353.png")
+![Streamlit Dashboard](images/Screenshot_2025-11-30_194102.png)
+![Streamlit Dashboard](images/Screenshot_2025-11-30_194353.png)
+
 
