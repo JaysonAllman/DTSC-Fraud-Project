@@ -50,7 +50,8 @@ graph TD
     D --> E[Supabase: fraud_reports table]
     E --> F[Streamlit Dashboard]
 ```
+## Dashboard Example
 <img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
-<img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/raw/main/images/Screenshot_2025-11-30_194353.png">
+<img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
 
