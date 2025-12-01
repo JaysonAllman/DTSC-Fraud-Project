@@ -131,7 +131,7 @@ blackmail  8
 spearphishing  4
 ```
 
-## 4. Clear Findings
+## Clear Findings
 
 The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities.
 
@@ -141,8 +141,7 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - **Keyword Trends:** Keyword aggregation allows tracking of specific fraud-related terms over time. For example, mentions of "phishing" increased from 14 in Jan–Feb 2023 to 170 in 2023 overall.  
 - **LLM Summaries:** AI-generated narratives summarize large volumes of reports, highlighting significant patterns and emerging threats in a human-readable format.  
 
-### Example Visuals
-
+### Example Visual
 **Analysis of All Time Fraud Trends**  
 <img width="700" alt="Dashboard Screenshot 3" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214835.png">
 
