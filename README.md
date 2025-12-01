@@ -66,7 +66,7 @@ DTSC-Fraud-Project/
 </pre>
 
 ## Data Transformation & Workflow
-📌 Overview
+Overview
 This project automates fraud detection analysis from IC3 reports using Python. The pipeline:
 
 1. Scrapes PDFs and webpages to extract fraud reports.
@@ -79,8 +79,8 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 <img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
-# 🛠 Example: Transforming Data
-📂 Example of Raw Data
+# Example: Transforming Data
+Example of Raw Data
 **fraud_summaries.csv** (sample rows):
 
 | id  | title               | date       | fraud_type_counts                    | keyword_counts                  |
@@ -130,3 +130,30 @@ tojan	5
 blackmail  8
 spearphishing  4
 ```
+
+## 4. Clear Findings
+
+The **Fraud Analysis Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities.
+
+### Key Insights
+
+- **Most Common Fraud Types:** The dashboard highlights the top fraud types per year, quarter, or custom time range, such as phishing, malware, and extortion.  
+- **Keyword Trends:** Keyword aggregation allows tracking of specific fraud-related terms over time. For example, mentions of "phishing" increased from 14 in Jan–Feb 2023 to 170 in 2023 overall.  
+- **LLM Summaries:** AI-generated narratives summarize large volumes of reports, highlighting significant patterns and emerging threats in a human-readable format.  
+
+### Example Visuals
+
+**Fraud Type Trends Over Time**  
+![Fraud Trends Line Chart](images/Screenshot_2025-11-30_194102.png)  
+
+**Top Keywords in Selected Period**  
+![Top Keywords List](images/Screenshot_2025-11-30_194353.png)  
+
+### Why It’s Useful
+
+- Saves **hours of manual report reading** by summarizing key fraud trends automatically.  
+- Provides **actionable insights** to security teams and analysts.  
+- Supports **interactive filtering** by year, quarter, or custom date ranges.  
+- Enables **trend visualization** for presentations, reports, or monitoring.
+
+
