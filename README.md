@@ -154,3 +154,5 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - Provides **actionable insights** to security teams and analysts.  
 - Supports **interactive filtering** by year, quarter, or All time ranges.  
 - Enables **trend visualization** for presentations, reports, or monitoring.
+
+https://dtsc-fraud-project-kzrjrxxgxdnc7kvanirkao.streamlit.app/
