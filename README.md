@@ -79,7 +79,7 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 <img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
-# Example: Transforming Data
+## Example: Transforming Data
 Example of Raw Data
 **fraud_summaries.csv** (sample rows):
 
