@@ -144,7 +144,11 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 ### Example Visuals
 
 **Anaylisis of All Time Fraud Trends**  
+<img width="700" alt="Dashboard Screenshot 3" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214835.png">
 
+<img width="700" alt="Dashboard Screenshot 4" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214847.png">
+
+<img width="700" alt="Dashboard Screenshot 5" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214858.png">
 
 ### Why It’s Useful
 
