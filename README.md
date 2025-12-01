@@ -85,8 +85,8 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 
 | id  | title               | date       | fraud_type_counts                    | keyword_counts                  |
 |-----|--------------------|------------|-------------------------------------|--------------------------------|
-| 1   | IC3 Report Jan 2023 | 2023-01-15 | {"Phishing": 10, "Malware": 5}      | {"phishing": 7, "malware": 5} |
-| 2   | IC3 Report Feb 2023 | 2023-02-10 | {"Extortion": 8, "Phishing": 4}     | {"extortion": 8, "phishing": 4} |
+| 1   | IC3 Report Jan 2023 | 2023-01-15 | {"Phishing": 10, "Malware": 5}      | {"smishing": 10, "trojan": 5} |
+| 2   | IC3 Report Feb 2023 | 2023-02-10 | {"Extortion": 8, "Phishing": 4}     | {"blackmail": 8, "pearphishing": 4} |
 
 🛠 Minimal Example: Transforming Data
 
@@ -127,7 +127,8 @@ print(keyword_summary)
 Output:
 
 keyword	count
-phishing	14
-malware	5
-extortion	8
+smishing	14
+tojan	5
+blackmail  8
+spearphishing  4
 ```
