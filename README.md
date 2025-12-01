@@ -126,7 +126,7 @@ Output:
 
 keyword	count
 smishing	14
-tojan	5
+trojan	5
 blackmail  8
 spearphishing  4
 ```
@@ -143,7 +143,7 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 
 ### Example Visuals
 
-**Anaylisis of All Time Fraud Trends**  
+**Analysis of All Time Fraud Trends**  
 <img width="700" alt="Dashboard Screenshot 3" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214835.png">
 
 <img width="700" alt="Dashboard Screenshot 4" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20214847.png">
@@ -156,5 +156,3 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - Provides **actionable insights** to security teams and analysts.  
 - Supports **interactive filtering** by year, quarter, or All time ranges.  
 - Enables **trend visualization** for presentations, reports, or monitoring.
-
-
