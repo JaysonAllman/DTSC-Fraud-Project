@@ -61,8 +61,7 @@ DTSC-Fraud-Project/
 ├─ loader.py               # Uploads CSV data to Supabase
 ├─ requirements.txt        # Dependencies
 ├─ .env                    # Environment variables (not tracked)
-├─ images/                 # Screenshots or GIFs
-└─ data/                   # Raw or processed CSV files
+└─ images/                 # Screenshots or GIFs
 </pre>
 
 ## Data Transformation & Workflow
