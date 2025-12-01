@@ -48,7 +48,9 @@ graph TD
     C --> D[llm_reports.py / fraud_reports.csv]
     C --> E[Supabase: pdf_summaries table]
     D --> E[Supabase: pdf_summaries table/fraud_reports table]
-    E --> F[Streamlit Dashboard]
+    E --> F[app.py]
+    F --> G[Streamlit Dashboard]
+
 ```
 
 ## Folder structure
