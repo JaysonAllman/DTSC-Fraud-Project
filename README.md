@@ -54,4 +54,13 @@ graph TD
 <img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
-
+DTSC-Fraud-Project/
+├─ app.py                  # Streamlit dashboard
+├─ scraper.py              # Scrapes IC3 PDFs & webpages
+├─keywords.py              # Fraud keyword dictionary & regex
+├─llm_reports.py           # Generates LLM summaries
+├─loader.py                # Uploads CSV data to Supabase
+├─requirements.txt         # Dependencies
+├─.env                     # Environment variables (not tracked)
+├─images/                  # Screenshots or GIFs
+└─data/                    # Raw or processed CSV files
