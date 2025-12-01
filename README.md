@@ -26,6 +26,7 @@ source .venv/bin/activate   # Linux/Mac
 uv pip install -r requirements.txt
 ```
 
+## Create and .env file
 ### 3. Setup Environment Variables
 - SUPABASE_URL=<your_supabase_url_here>
 - SUPABASE_KEY=<your_supabase_anon_key_here>
