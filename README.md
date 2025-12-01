@@ -1,50 +1,27 @@
-DTSC Fraud Project – README
+# Fraud Trends Dashboard
 
-Overview
+## Team Member
+- Jayson Allman  
 
-This project extracts fraud-related keywords from IC3 reports, stores them in a Supabase database, and visualizes trends through a Streamlit dashboard. The system provides insights into the most common fraud types across multiple years.
+**Project for Cybersecurity Data Analysis / Fraud Detection**
 
-Features
+---
 
-• Connects securely to Supabase using .env file.
-• Processes fraud keywords from uploaded PDF summaries.
-• Visualizes trends with bar charts, line graphs, and heatmaps.
-• Provides keyword definitions and real‑world impacts.
-• Includes CSV download functionality.
-• Contains a full AI‑generated summary of trends.
+## Project Summary
+This repository contains the **Fraud Trends Dashboard**, which scrapes IC3 reports, extracts fraud-related keywords, and generates AI-powered summaries for interactive visualization of fraud trends across time.
 
-Files in Repository
+The project helps analysts quickly detect patterns, recurring fraud types, and emerging threats without manually reviewing PDFs.
 
-• app_local.py – Local version with .env support.
-• app.py – Cloud deployment version for Streamlit.
-• requirements.txt – Dependencies for running the project.
-• test_supabase_select.py – Supabase connection tester.
+---
 
-How to Run Locally
+## ⚙️ ETL Pipeline
 
-1. Install Python 3.10 or above.
-2. Install dependencies: pip install -r requirements.txt
-3. Create a .env file in the project folder with SUPABASE_URL and SUPABASE_SERVICE_KEY.
-4. Run the dashboard: streamlit run app_local.py
+The system follows a full **Extract–Transform–Load (ETL)** workflow:
 
-Deployment
+| Stage | Description | Tools Used |
+|-------|------------|------------|
+| **Extract** | Downloads IC3 webpages and PDFs for fraud reports. | `requests`, `BeautifulSoup4`, `PyMuPDF` / `PyPDF2` |
+| **Transform** | Cleans text, detects keywords, flattens nested JSON counts, and standardizes date formats. | `pandas`, `numpy`, `re`, `datetime` |
+| **Load** | Uploads structured data to **Supabase**, storing both summaries and keyword counts. | `supabase-py`, `.env` for credentials |
 
-The dashboard deploys automatically on Streamlit Cloud whenever changes are pushed to the GitHub repository. Ensure the deployment file is named app.py.
-Authors
-
-This project was created by:
-
-- Taylor Foster
-- Sam McClure
-- Jayson Allman
-- Yousef Eddin
-
-
-
-Streamlit Deployment
-
-The project is deployed on Streamlit Cloud and updates automatically whenever changes are pushed to the GitHub repository. The live dashboard can be accessed at:
-
-[https://dtsc-fraud-project-team2.streamlit.app](https://dtsc-fraud-project-kzrjrxxgxdnc7kvanirkao.streamlit.app/)
-
-To deploy manually, ensure your deployment file is named 'app.py' and located in the root of the repository. Streamlit Cloud detects this file and runs the app upon deployment.
+### 📊 ETL Workflow
