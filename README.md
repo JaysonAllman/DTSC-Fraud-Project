@@ -9,7 +9,7 @@ This project automates the collection, analysis, and summarization of industry r
 
 ## Quick Start
 
-Follow these steps to get the Fraud Analysis Dashboard running locally.
+Follow these steps to get the Fraud Trends Dashboard running locally.
 
 ---
 
