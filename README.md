@@ -27,9 +27,9 @@ uv pip install -r requirements.txt
 ```
 
 ### 3. Setup Environment Variables
-SUPABASE_URL=<your_supabase_url_here>
-SUPABASE_KEY=<your_supabase_anon_key_here>
-OPENAI_API_KEY=<your_openai_api_key_here>
+- SUPABASE_URL=<your_supabase_url_here>
+- SUPABASE_KEY=<your_supabase_anon_key_here>
+- OPENAI_API_KEY=<your_openai_api_key_here>
 
 ### 4. Run the Streamlit Dashboard
 ```bash
