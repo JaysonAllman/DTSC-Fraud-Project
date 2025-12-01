@@ -39,7 +39,7 @@ uv run streamlit run app.py
 
 ## Architecture Diagram
 
-The workflow of the **DTSC Fraud Analysis Project** is illustrated below. It shows the ETL pipeline from scraping IC3 webpages and PDFs, generating keyword summaries, storing data in Supabase, and visualizing trends on the Streamlit dashboard.
+The workflow of the **DTSC Fraud Trends Project** is illustrated below. It shows the ETL pipeline from scraping IC3 webpages and PDFs, generating keyword summaries, storing data in Supabase, and visualizing trends on the Streamlit dashboard.
 
 ```mermaid
 graph TD
