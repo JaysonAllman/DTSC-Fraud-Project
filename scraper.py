@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 import json
 from keywords import FRAUD_REGEX  
 
-PDF_FOLDER = "pdfs"  # base folder for downloaded PDFs
+PDF_FOLDER = "pdfs"  
 CSV_FILE = "pdf_summaries_supabase.csv"
 
 # -------------------------------
@@ -69,7 +69,7 @@ def scrape_pdf_links(page_url):
             pdf_entries.append({"title": title, "url": full_url, "date": date_obj})
     return pdf_entries
 
-def download_pdf(url, folder):
+def download_pdf(url, folder=PDF_FOLDER):
     os.makedirs(folder, exist_ok=True)
     filename = os.path.basename(url)
     path = os.path.join(folder, filename)
@@ -106,7 +106,6 @@ def find_keywords_and_sentences(text):
             continue
         for fraud_type, pattern in FRAUD_REGEX.items():
             matches = pattern.findall(sent)
-            # flatten tuples in case regex uses groups
             matches = [m if isinstance(m, str) else next(filter(None, m)) for m in matches]
             matches = [m.lower() for m in matches]
 
@@ -116,13 +115,19 @@ def find_keywords_and_sentences(text):
                     keyword_counts[fraud_type][m] = keyword_counts[fraud_type].get(m, 0) + 1
                 summary_sentences.append(sent.strip())
 
-    # remove duplicates
+    # ensure all fraud types exist even if empty
+    for ftype in FRAUD_REGEX.keys():
+        if ftype not in counts:
+            counts[ftype] = 0
+        if ftype not in keyword_counts:
+            keyword_counts[ftype] = {}
+
     summary_sentences = list(dict.fromkeys(summary_sentences))
     summary_text = " ".join(summary_sentences).replace("\n", " ").replace("\r", " ")
     return counts, keyword_counts, summary_text
 
 # -------------------------------
-# Main scraping pipeline
+# Main pipeline
 # -------------------------------
 
 urls = {
@@ -157,18 +162,28 @@ for year, page_url in urls.items():
             print(f"Skipping {entry['title']}: no date found")
             continue
 
+        # clean newlines for CSV
+        clean_summary = summary.replace("\n", " ").replace("\r", " ")
+        clean_text = full_text.replace("\n", " ").replace("\r", " ")
+
         row = {
             "title": entry["title"],
+            "url": entry["url"],
+            "filepath": pdf_path,
             "date": entry["date"].strftime("%Y-%m-%d"),
             "quarter": get_quarter(entry["date"]),
-            "filepath": pdf_path,  # store full PDF path
-            "text": full_text,     # full extracted PDF text
             "fraud_type_counts": json.dumps(fraud_counts),
             "keyword_counts": json.dumps(keyword_counts),
-            "summary": summary
+            "summary": clean_summary,
+            "text": clean_text  # full PDF text after summary
         }
         all_rows.append(row)
 
 df = pd.DataFrame(all_rows)
+
+# force uniform column order
+columns = ["title","url","filepath","date","quarter","fraud_type_counts","keyword_counts","summary","text"]
+df = df[columns]
+
 df.to_csv(CSV_FILE, index=False)
 print(f"\n✅ Supabase-ready CSV created: {CSV_FILE} ({len(df)} entries)")
