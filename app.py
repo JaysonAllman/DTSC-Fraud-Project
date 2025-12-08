@@ -25,7 +25,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY not found. Please check your .env file.")
+    st.error("❌ OPENAI_API_KEY not found. Check your .env file.")
     st.stop()
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Missing SUPABASE_URL or SUPABASE_KEY in environment.")
@@ -51,7 +51,7 @@ def parse_json_field(field: Any) -> Dict:
         except Exception:
             try:
                 return json.loads(field.replace("'", '"'))
-            except Exception:
+            except:
                 return {}
     return {}
 
@@ -116,14 +116,14 @@ def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str, int]:
     return totals
 
 def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any) -> pd.DataFrame:
-    if selection_mode == "All" or selection_value is None:
+    if selection_mode == "All":
         return df.copy()
     if selection_mode == "Year":
         return df[df["year"] == int(selection_value)].copy()
     if selection_mode == "Quarter":
         year, q = selection_value
         return df[(df["year"] == int(year)) & (df["quarter"] == int(q))].copy()
-    if selection_mode == "MonthRange":
+    if selection_mode == "Custom Range (months)":
         start, end = selection_value
         return df[(df["date"] >= start) & (df["date"] <= end)].copy()
     return df.copy()
@@ -172,7 +172,7 @@ def get_llm_report_for_period(reports_df: pd.DataFrame, selection_mode: str, sel
     elif selection_mode == "Quarter":
         year, q = selection_value
         label = f"Q{q} {year}"
-    elif selection_mode == "MonthRange":
+    elif selection_mode == "Custom Range (months)":
         start, end = selection_value
         if start.year == end.year and start.month == end.month:
             label = start.strftime("%B %Y")
@@ -211,14 +211,10 @@ def compute_clusters(df, n_clusters=5):
     df["embedding_clean"] = cleaned_embeddings
     df = df[df["embedding_clean"].notna()].copy()
     if df.empty:
-        st.warning("All embeddings were invalid — cannot cluster.")
+        st.warning("All embeddings invalid — cannot cluster.")
         return df
     embeddings = np.array(df["embedding_clean"].tolist(), dtype=np.float32)
-    if embeddings.ndim != 2:
-        st.error(f"❌ Embeddings must be 2D, got shape {embeddings.shape}")
-        return df
-    if len(embeddings) < n_clusters:
-        n_clusters = max(1, len(embeddings))
+    n_clusters = min(n_clusters, len(embeddings))
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     df["cluster"] = kmeans.fit_predict(embeddings)
     return df
@@ -226,6 +222,8 @@ def compute_clusters(df, n_clusters=5):
 def compute_fraud_weight(df):
     if "fraud_score" not in df.columns:
         df["fraud_score"] = df.apply(compute_fraud_score, axis=1)
+    if "cluster" not in df.columns:
+        df["cluster"] = 0
     cluster_avg = df.groupby("cluster")["fraud_score"].transform("mean")
     df["fraud_weight_raw"] = df["fraud_score"] * cluster_avg
     scaler = MinMaxScaler()
@@ -273,14 +271,12 @@ def load_data():
 
 pdf_df, reports_df = load_data()
 if pdf_df.empty:
-    st.warning("No pdf_summaries rows found in Supabase.")
+    st.warning("No pdf_summaries found.")
     st.stop()
 
-# Sidebar
+# Sidebar filters
 st.sidebar.header("Filters & Controls")
-years = sorted(pdf_df["year"].unique().tolist())
-min_year, max_year = min(years), max(years)
-
+years = sorted(pdf_df["year"].unique())
 selection_mode = st.sidebar.selectbox("Select time window type", ["All", "Year", "Quarter", "Custom Range (months)"])
 selection_value = None
 if selection_mode == "Year":
@@ -291,68 +287,80 @@ elif selection_mode == "Quarter":
     sel_q = st.sidebar.selectbox("Quarter", [1,2,3,4], index=3)
     selection_value = (int(sel_year), int(sel_q))
 elif selection_mode == "Custom Range (months)":
-    start = st.sidebar.date_input("Start date", value=datetime(min_year,1,1).date())
-    end = st.sidebar.date_input("End date", value=datetime(max_year,12,31).date())
+    start = st.sidebar.date_input("Start date", value=datetime(min(years),1,1))
+    end = st.sidebar.date_input("End date", value=datetime(max(years),12,31))
     if start > end:
         st.sidebar.error("Start date must be <= end date")
     selection_value = (pd.to_datetime(start), pd.to_datetime(end))
 
-agg_resolution = st.sidebar.selectbox("Trend resolution (for line chart)", ["year", "quarter", "month"], index=1)
-topn = st.sidebar.slider("Top N fraud types to show", 1, 8, 5)
-topk = st.sidebar.slider("Top N keywords to list", 1, 10, 5)
+agg_resolution = st.sidebar.selectbox("Trend resolution", ["year", "quarter", "month"], index=1)
+topn = st.sidebar.slider("Top N fraud types", 1, 8, 5)
+topk = st.sidebar.slider("Top N keywords", 1, 10, 5)
 
 # Filtered data
 filtered = timeframe_filter(pdf_df, selection_mode, selection_value)
 
-# -----------------------------
-# Aggregate totals for selected period
-# -----------------------------
+# Aggregate totals
 fraud_totals = aggregate_fraud_type_counts(filtered)
 keyword_totals = aggregate_keyword_counts(filtered)
-ts_df = timeseries_by_period(filtered, agg=agg_resolution, top_n=topn)
 
-# Display
-st.subheader(f"Aggregate Fraud Totals — {selection_mode}")
+st.sidebar.subheader("Aggregate Fraud Counts")
 if fraud_totals:
-    for ft, cnt in fraud_totals.items():
-        st.write(f"**{ft}** — {cnt:,}")
-else:
-    st.info("No fraud types found for this period.")
-
-st.subheader(f"Top Keywords — {selection_mode}")
-top_keywords = get_top_keywords(keyword_totals, topn)
-if top_keywords:
-    for i, (kw, cnt) in enumerate(top_keywords, start=1):
-        st.write(f"{i}. **{kw}** — {cnt:,}")
-else:
-    st.info("No keywords found for this period.")
+    for k, v in fraud_totals.items():
+        st.sidebar.write(f"{k}: {v:,}")
+st.sidebar.subheader("Top Keywords")
+for kw, cnt in get_top_keywords(keyword_totals, topk):
+    st.sidebar.write(f"{kw}: {cnt:,}")
 
 # Tabs
 tab1, tab2 = st.tabs(["Dashboard", "Semantic Search"])
 
 with tab1:
-    st.subheader("Fraud Trends Over Time")
-    if ts_df.empty:
-        st.info("Not enough data to build a trend for this selection.")
-    else:
+    # -----------------------------
+    # Fraud trends chart
+    # -----------------------------
+    ts_df = timeseries_by_period(filtered, agg=agg_resolution, top_n=topn)
+    if not ts_df.empty:
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
-        melted["period_dt"] = pd.to_datetime(melted["period"].str.replace("-Q", "-01"), errors="coerce")
+        melted["period_dt"] = pd.to_datetime(melted["period"].str.replace("-Q","-"))  # simple approx
         chart = alt.Chart(melted).mark_line(point=True).encode(
             x=alt.X("period_dt:T", title="Period"),
-            y=alt.Y("count:Q", title="Total mentions"),
-            color=alt.Color("fraud_type:N", title="Fraud type"),
-            tooltip=[alt.Tooltip("period_dt:T", title="Period"), alt.Tooltip("fraud_type:N", title="Fraud Type"), alt.Tooltip("count:Q", title="Count")]
-        ).properties(width=900, height=420)
+            y=alt.Y("count:Q", title="Count"),
+            color="fraud_type:N",
+            tooltip=["period_dt:T","fraud_type:N","count:Q"]
+        ).properties(width=900, height=400)
         st.altair_chart(chart, use_container_width=True)
+    else:
+        st.info("Not enough data for trend chart.")
+
+    # LLM narrative
+    llm_text = get_llm_report_for_period(reports_df, selection_mode, selection_value)
+    st.subheader("AI Narrative")
+    if llm_text:
+        st.write(llm_text)
+    else:
+        st.info("No narrative available for this period.")
+
+    # Clustering & fraud weight
+    filtered_scoring = compute_clusters(filtered.copy())
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
+    filtered_scoring["risk_level"] = filtered_scoring["fraud_weight"].apply(risk_level)
+    st.subheader("Fraud Scoring & Risk Levels")
+    st.dataframe(filtered_scoring[["title","fraud_score","cluster","fraud_weight","risk_level"]].sort_values("fraud_weight", ascending=False))
+
+    # Cluster distribution
+    cluster_counts = filtered_scoring.groupby("cluster").size().reset_index(name="count")
+    st.subheader("Cluster Distribution")
+    st.bar_chart(cluster_counts.set_index("cluster"))
 
 with tab2:
     st.subheader("Semantic Search")
     query = st.text_input("Enter search query:")
-    top_k = st.slider("Top results to show", 1, 10, 5)
+    top_k = st.slider("Top results", 1, 10, 5)
     if query:
         search_results = semantic_search(pdf_df, query, top_k=top_k)
         for _, row in search_results.iterrows():
-            snippet = (row["text"][:200] + "...") if row["text"] else ""
+            snippet = (row["text"][:200]+"...") if row["text"] else ""
             weight = row.get("fraud_weight", 0)
             st.markdown(f"**{row['title']}** — Risk: {risk_level(weight)}")
             st.write(snippet)
