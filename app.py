@@ -1,4 +1,4 @@
-# streamlit_dashboard.py
+# app.py
 import os
 import json
 import ast
@@ -18,53 +18,28 @@ from openai import OpenAI
 # -----------------------------
 # 1️⃣ Load environment variables
 # -----------------------------
-load_dotenv()  # This reads your .env file
+load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found. Please check your .env file.")
-    st.stop()  # stop the app if key is missing
-
-# -----------------------------
-# 2️⃣ Initialize OpenAI client
-# -----------------------------
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-# -----------------------------
-# 3️⃣ Streamlit UI
-# -----------------------------
-st.title("OpenAI Test App")
-
-prompt = st.text_input("Enter a prompt:")
-
-if st.button("Generate"):
-    if prompt:
-        # Example usage
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        st.write(response.choices[0].message.content)
-    else:
-        st.warning("Please enter a prompt first.")
-
-# ---------------------------
-# Configuration
-# ---------------------------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
+    st.stop()
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Missing SUPABASE_URL or SUPABASE_KEY in environment. Put them in your .env file.")
+    st.error("Missing SUPABASE_URL or SUPABASE_KEY in environment.")
     st.stop()
 
+# -----------------------------
+# 2️⃣ Initialize clients
+# -----------------------------
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------------------
-# Helpers
-# ---------------------------
+# -----------------------------
+# 3️⃣ Helpers
+# -----------------------------
 def parse_json_field(field: Any) -> Dict:
     if field is None:
         return {}
@@ -116,7 +91,7 @@ def flatten_keyword_counts(keyword_json: Dict) -> Dict[str, int]:
         for term, cnt in inner.items():
             try:
                 c = int(cnt)
-            except Exception:
+            except:
                 c = 0
             totals[term] = totals.get(term, 0) + c
     return totals
@@ -127,7 +102,7 @@ def aggregate_fraud_type_counts(rows: pd.DataFrame) -> Dict[str, int]:
         for k, v in (d or {}).items():
             try:
                 c = int(v)
-            except Exception:
+            except:
                 c = 0
             totals[k] = totals.get(k, 0) + c
     return totals
@@ -141,11 +116,10 @@ def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str, int]:
     return totals
 
 def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any) -> pd.DataFrame:
-    if selection_mode == "All":
+    if selection_mode == "All" or selection_value is None:
         return df.copy()
     if selection_mode == "Year":
-        year = selection_value
-        return df[df["year"] == int(year)].copy()
+        return df[df["year"] == int(selection_value)].copy()
     if selection_mode == "Quarter":
         year, q = selection_value
         return df[(df["year"] == int(year)) & (df["quarter"] == int(q))].copy()
@@ -168,7 +142,7 @@ def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> p
         for k, v in (r["fraud_type_counts_parsed"] or {}).items():
             try:
                 c = int(v)
-            except Exception:
+            except:
                 c = 0
             totals[k] = totals.get(k, 0) + c
         rows.append({"period": label, **totals})
@@ -212,16 +186,8 @@ def get_llm_report_for_period(reports_df: pd.DataFrame, selection_mode: str, sel
     matches = reports_df[reports_df["period"].astype(str).str.lower().str.contains(label.strip().lower(), na=False)]
     if not matches.empty:
         return matches.iloc[0]["summary"]
-    if selection_mode in ("Quarter", "MonthRange"):
-        yr = selection_value[0] if selection_mode=="Quarter" else selection_value[0].year
-        matches = reports_df[reports_df["period"].astype(str).str.strip() == str(yr)]
-        if not matches.empty:
-            return matches.iloc[0]["summary"]
     return ""
 
-# ---------------------------
-# Fraud Score, Clustering, Fraud Weight
-# ---------------------------
 def compute_fraud_score(row, kw_weight=1.0, ft_weight=1.5):
     kw_count = sum(flatten_keyword_counts(row["keyword_counts_parsed"]).values())
     ft_count = sum(row["fraud_type_counts_parsed"].values() if row["fraud_type_counts_parsed"] else [])
@@ -253,13 +219,8 @@ def compute_clusters(df, n_clusters=5):
         return df
     if len(embeddings) < n_clusters:
         n_clusters = max(1, len(embeddings))
-    try:
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        df["cluster"] = kmeans.fit_predict(embeddings)
-    except Exception as e:
-        st.error(f"❌ KMeans failed: {e}")
-        st.write("Embeddings shape:", embeddings.shape)
-        return df
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    df["cluster"] = kmeans.fit_predict(embeddings)
     return df
 
 def compute_fraud_weight(df):
@@ -278,9 +239,6 @@ def risk_level(score):
         return "Medium"
     return "High"
 
-# ---------------------------
-# Fix embeddings & Semantic Search
-# ---------------------------
 def fix_embedding(e):
     if isinstance(e, list):
         return e
@@ -303,30 +261,26 @@ def semantic_search(df, query, top_k=5):
     df["similarity"] = df["embedding"].apply(lambda e: cosine_similarity([query_emb], [e])[0][0])
     return df.sort_values("similarity", ascending=False).head(top_k)
 
-# ---------------------------
-# Streamlit UI
-# ---------------------------
+# -----------------------------
+# 4️⃣ Streamlit UI
+# -----------------------------
 st.set_page_config(page_title="Fraud Trends Dashboard", layout="wide")
 st.title("Fraud Trends Dashboard")
 
 @st.cache_data(ttl=300)
 def load_data():
-    pdf_df = fetch_pdf_summaries()
-    reports_df = fetch_fraud_reports()
-    return pdf_df, reports_df
+    return fetch_pdf_summaries(), fetch_fraud_reports()
 
 pdf_df, reports_df = load_data()
-if pdf_df is None or pdf_df.empty:
+if pdf_df.empty:
     st.warning("No pdf_summaries rows found in Supabase.")
     st.stop()
 
-# (Sidebar, tabs, charts, clustering, semantic search, footer remain unchanged)
-# ... your existing UI code goes here ...
-
-# Sidebar filters
+# Sidebar
 st.sidebar.header("Filters & Controls")
 years = sorted(pdf_df["year"].unique().tolist())
 min_year, max_year = min(years), max(years)
+
 selection_mode = st.sidebar.selectbox("Select time window type", ["All", "Year", "Quarter", "Custom Range (months)"])
 selection_value = None
 if selection_mode == "Year":
@@ -342,91 +296,54 @@ elif selection_mode == "Custom Range (months)":
     if start > end:
         st.sidebar.error("Start date must be <= end date")
     selection_value = (pd.to_datetime(start), pd.to_datetime(end))
-else:
-    selection_value = None
 
 agg_resolution = st.sidebar.selectbox("Trend resolution (for line chart)", ["year", "quarter", "month"], index=1)
 topn = st.sidebar.slider("Top N fraud types to show", 1, 8, 5)
 topk = st.sidebar.slider("Top N keywords to list", 1, 10, 5)
 
-# Filter pdf rows
-filtered = timeframe_filter(pdf_df, selection_mode if selection_mode!="All" else "All", selection_value)
+# Filtered data
+filtered = timeframe_filter(pdf_df, selection_mode, selection_value)
 
-st.sidebar.markdown(f"**PDF rows in selection:** {len(filtered)}")
-
-# Aggregate totals
+# -----------------------------
+# Aggregate totals for selected period
+# -----------------------------
 fraud_totals = aggregate_fraud_type_counts(filtered)
 keyword_totals = aggregate_keyword_counts(filtered)
 ts_df = timeseries_by_period(filtered, agg=agg_resolution, top_n=topn)
 
-# Tabs: Dashboard vs Semantic Search
+# Display
+st.subheader(f"Aggregate Fraud Totals — {selection_mode}")
+if fraud_totals:
+    for ft, cnt in fraud_totals.items():
+        st.write(f"**{ft}** — {cnt:,}")
+else:
+    st.info("No fraud types found for this period.")
+
+st.subheader(f"Top Keywords — {selection_mode}")
+top_keywords = get_top_keywords(keyword_totals, topn)
+if top_keywords:
+    for i, (kw, cnt) in enumerate(top_keywords, start=1):
+        st.write(f"{i}. **{kw}** — {cnt:,}")
+else:
+    st.info("No keywords found for this period.")
+
+# Tabs
 tab1, tab2 = st.tabs(["Dashboard", "Semantic Search"])
 
 with tab1:
-    # ---------------------------
-    # Fraud trends chart
-    # ---------------------------
-    col1, col2 = st.columns([3,1])
-    with col1:
-        st.subheader("Fraud type trends")
-        if ts_df.empty:
-            st.info("Not enough data to build a trend for this selection.")
-        else:
-            melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
-            def period_label_to_dt(row):
-                p = row['period']
-                try:
-                    if "-" in p and len(p.split("-")[1]) == 2:
-                        y, m = p.split("-")
-                        return datetime(int(y), int(m), 1)
-                    if "-Q" in p:
-                        y, q = p.split("-Q")
-                        y = int(y)
-                        q = int(q)
-                        match_dates = filtered[(filtered['year'] == y) & (filtered['quarter'] == q)]['date']
-                        return match_dates.min().replace(day=1) if not match_dates.empty else datetime(y, (q-1)*3+1,1)
-                    return datetime(int(p),1,1)
-                except Exception:
-                    return datetime(1970,1,1)
-            melted["period_dt"] = melted.apply(period_label_to_dt, axis=1)
-            chart = alt.Chart(melted).mark_line(point=True).encode(
-                x=alt.X("period_dt:T", title="Period", axis=alt.Axis(labelExpr='timeFormat(datum.value, "%Y-%m")')),
-                y=alt.Y("count:Q", title="Total mentions"),
-                color=alt.Color("fraud_type:N", title="Fraud type"),
-                tooltip=[alt.Tooltip("period_dt:T", title="Period"), alt.Tooltip("fraud_type:N", title="Fraud Type"), alt.Tooltip("count:Q", title="Count")]
-            ).properties(width=900, height=420)
-            st.altair_chart(chart, use_container_width=True)
-    with col2:
-        st.subheader(f"Top {topk} Keywords")
-        top_keywords = get_top_keywords(keyword_totals, topk)
-        if not top_keywords:
-            st.write("No keyword data available for the selected period.")
-        else:
-            for i, (kw, cnt) in enumerate(top_keywords, start=1):
-                st.write(f"**{i}. {kw}** — {cnt:,}")
-
-    # LLM narrative
-    st.markdown("---")
-    st.subheader("AI Narrative")
-    llm_text = get_llm_report_for_period(reports_df, "All" if selection_mode=="All" else selection_mode, selection_value)
-    if not llm_text:
-        st.info("No LLM narrative found for the selected period.")
+    st.subheader("Fraud Trends Over Time")
+    if ts_df.empty:
+        st.info("Not enough data to build a trend for this selection.")
     else:
-        st.write(llm_text)
-
-    # Fraud scoring, clustering, fraud weight
-    st.markdown("---")
-    st.subheader("Fraud Scoring, Clustering & Fraud Weight")
-    filtered_scoring = filtered.copy()
-    filtered_scoring = compute_clusters(filtered_scoring)
-    filtered_scoring = compute_fraud_weight(filtered_scoring)
-    filtered_scoring["risk_level"] = filtered_scoring["fraud_weight"].apply(risk_level)
-    st.dataframe(filtered_scoring[["title","fraud_score","cluster","fraud_weight","risk_level"]].sort_values("fraud_weight", ascending=False))
-
-    # Cluster distribution
-    st.subheader("Cluster distribution")
-    cluster_counts = filtered_scoring.groupby("cluster").size().reset_index(name="count")
-    st.bar_chart(cluster_counts.set_index("cluster"))
+        melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
+        melted["period_dt"] = pd.to_datetime(melted["period"].str.replace("-Q", "-01"), errors="coerce")
+        chart = alt.Chart(melted).mark_line(point=True).encode(
+            x=alt.X("period_dt:T", title="Period"),
+            y=alt.Y("count:Q", title="Total mentions"),
+            color=alt.Color("fraud_type:N", title="Fraud type"),
+            tooltip=[alt.Tooltip("period_dt:T", title="Period"), alt.Tooltip("fraud_type:N", title="Fraud Type"), alt.Tooltip("count:Q", title="Count")]
+        ).properties(width=900, height=420)
+        st.altair_chart(chart, use_container_width=True)
 
 with tab2:
     st.subheader("Semantic Search")
@@ -436,7 +353,7 @@ with tab2:
         search_results = semantic_search(pdf_df, query, top_k=top_k)
         for _, row in search_results.iterrows():
             snippet = (row["text"][:200] + "...") if row["text"] else ""
-            weight = row["fraud_weight"] if "fraud_weight" in row else 0
+            weight = row.get("fraud_weight", 0)
             st.markdown(f"**{row['title']}** — Risk: {risk_level(weight)}")
             st.write(snippet)
             st.markdown("---")
