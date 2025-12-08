@@ -227,13 +227,64 @@ def compute_fraud_score(row, kw_weight=1.0, ft_weight=1.5):
     return kw_weight * kw_count + ft_weight * ft_count
 
 def compute_clusters(df, n_clusters=5):
-    if "embedding" not in df.columns or df.empty:
+    # Nothing to do
+    if df.empty or "embedding" not in df.columns:
         return df
-    embeddings = np.array(df["embedding"].tolist())
+
+    # Remove rows with missing or invalid embeddings
+    df = df[df["embedding"].notna()].copy()
+
+    # Ensure each embedding is a list of floats
+    cleaned_embeddings = []
+    bad_rows = 0
+
+    for e in df["embedding"]:
+        try:
+            # Strings → try to parse JSON
+            if isinstance(e, str):
+                e = json.loads(e)
+
+            # Must be list-like
+            if not isinstance(e, (list, tuple)):
+                bad_rows += 1
+                cleaned_embeddings.append(None)
+                continue
+
+            # Convert inner values to float
+            cleaned_embeddings.append([float(x) for x in e])
+
+        except Exception:
+            bad_rows += 1
+            cleaned_embeddings.append(None)
+
+    df["embedding_clean"] = cleaned_embeddings
+    df = df[df["embedding_clean"].notna()].copy()
+
+    if df.empty:
+        st.warning("All embeddings were invalid — cannot cluster.")
+        return df
+
+    # Convert to 2D numpy array
+    embeddings = np.array(df["embedding_clean"].tolist(), dtype=np.float32)
+
+    # Ensure proper shape: (num_samples, embedding_dim)
+    if embeddings.ndim != 2:
+        st.error(f"❌ Embeddings must be 2D, got shape {embeddings.shape}")
+        return df
+
+    # Adjust n_clusters if needed
     if len(embeddings) < n_clusters:
-        n_clusters = max(1, len(embeddings)//2)
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    df["cluster"] = kmeans.fit_predict(embeddings)
+        n_clusters = max(1, len(embeddings))
+
+    # Final KMeans
+    try:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        df["cluster"] = kmeans.fit_predict(embeddings)
+    except Exception as e:
+        st.error(f"❌ KMeans failed: {e}")
+        st.write("Embeddings shape:", embeddings.shape)
+        return df
+
     return df
 
 def compute_fraud_weight(df):
