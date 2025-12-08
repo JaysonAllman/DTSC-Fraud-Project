@@ -9,7 +9,8 @@ from urllib.parse import urljoin
 import json
 from keywords import FRAUD_REGEX  
 
-PDF_FOLDER = "pdfs"  
+PDF_FOLDER = "pdfs"  # base folder for downloaded PDFs
+CSV_FILE = "pdf_summaries_supabase.csv"
 
 # -------------------------------
 # Helper functions
@@ -68,7 +69,7 @@ def scrape_pdf_links(page_url):
             pdf_entries.append({"title": title, "url": full_url, "date": date_obj})
     return pdf_entries
 
-def download_pdf(url, folder=PDF_FOLDER):
+def download_pdf(url, folder):
     os.makedirs(folder, exist_ok=True)
     filename = os.path.basename(url)
     path = os.path.join(folder, filename)
@@ -115,15 +116,14 @@ def find_keywords_and_sentences(text):
                     keyword_counts[fraud_type][m] = keyword_counts[fraud_type].get(m, 0) + 1
                 summary_sentences.append(sent.strip())
 
+    # remove duplicates
     summary_sentences = list(dict.fromkeys(summary_sentences))
     summary_text = " ".join(summary_sentences).replace("\n", " ").replace("\r", " ")
     return counts, keyword_counts, summary_text
 
 # -------------------------------
-# Main pipeline
+# Main scraping pipeline
 # -------------------------------
-
-CSV_FILE = "pdf_summaries_supabase.csv"
 
 urls = {
     2020: "https://www.ic3.gov/CSA/2020",
@@ -142,16 +142,17 @@ for year, page_url in urls.items():
     print(f"Found {len(pdf_entries)} PDFs for {year}")
 
     for entry in pdf_entries:
-        pdf_path = download_pdf(entry["url"], folder=f"{PDF_FOLDER}/{year}")
+        folder = os.path.join(PDF_FOLDER, str(year))
+        pdf_path = download_pdf(entry["url"], folder=folder)
         if not pdf_path:
             continue
 
-        text = extract_text(pdf_path)
-        if not text.strip():
+        full_text = extract_text(pdf_path)
+        if not full_text.strip():
             print(f"No text extracted from {pdf_path}")
             continue
 
-        fraud_counts, keyword_counts, summary = find_keywords_and_sentences(text)
+        fraud_counts, keyword_counts, summary = find_keywords_and_sentences(full_text)
         if entry["date"] is None:
             print(f"Skipping {entry['title']}: no date found")
             continue
@@ -160,8 +161,10 @@ for year, page_url in urls.items():
             "title": entry["title"],
             "date": entry["date"].strftime("%Y-%m-%d"),
             "quarter": get_quarter(entry["date"]),
-            "fraud_type_counts": json.dumps(fraud_counts),   # JSONB-ready
-            "keyword_counts": json.dumps(keyword_counts),   # JSONB-ready
+            "filepath": pdf_path,  # store full PDF path
+            "text": full_text,     # full extracted PDF text
+            "fraud_type_counts": json.dumps(fraud_counts),
+            "keyword_counts": json.dumps(keyword_counts),
             "summary": summary
         }
         all_rows.append(row)
