@@ -1,6 +1,7 @@
 # streamlit_dashboard.py
 import os
 import json
+import ast
 from typing import Dict, List, Tuple, Any
 import pandas as pd
 import numpy as np
@@ -227,56 +228,31 @@ def compute_fraud_score(row, kw_weight=1.0, ft_weight=1.5):
     return kw_weight * kw_count + ft_weight * ft_count
 
 def compute_clusters(df, n_clusters=5):
-    # Nothing to do
     if df.empty or "embedding" not in df.columns:
         return df
-
-    # Remove rows with missing or invalid embeddings
     df = df[df["embedding"].notna()].copy()
-
-    # Ensure each embedding is a list of floats
     cleaned_embeddings = []
-    bad_rows = 0
-
     for e in df["embedding"]:
         try:
-            # Strings → try to parse JSON
             if isinstance(e, str):
                 e = json.loads(e)
-
-            # Must be list-like
             if not isinstance(e, (list, tuple)):
-                bad_rows += 1
                 cleaned_embeddings.append(None)
                 continue
-
-            # Convert inner values to float
             cleaned_embeddings.append([float(x) for x in e])
-
-        except Exception:
-            bad_rows += 1
+        except:
             cleaned_embeddings.append(None)
-
     df["embedding_clean"] = cleaned_embeddings
     df = df[df["embedding_clean"].notna()].copy()
-
     if df.empty:
         st.warning("All embeddings were invalid — cannot cluster.")
         return df
-
-    # Convert to 2D numpy array
     embeddings = np.array(df["embedding_clean"].tolist(), dtype=np.float32)
-
-    # Ensure proper shape: (num_samples, embedding_dim)
     if embeddings.ndim != 2:
         st.error(f"❌ Embeddings must be 2D, got shape {embeddings.shape}")
         return df
-
-    # Adjust n_clusters if needed
     if len(embeddings) < n_clusters:
         n_clusters = max(1, len(embeddings))
-
-    # Final KMeans
     try:
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         df["cluster"] = kmeans.fit_predict(embeddings)
@@ -284,7 +260,6 @@ def compute_clusters(df, n_clusters=5):
         st.error(f"❌ KMeans failed: {e}")
         st.write("Embeddings shape:", embeddings.shape)
         return df
-
     return df
 
 def compute_fraud_weight(df):
@@ -303,12 +278,30 @@ def risk_level(score):
         return "Medium"
     return "High"
 
+# ---------------------------
+# Fix embeddings & Semantic Search
+# ---------------------------
+def fix_embedding(e):
+    if isinstance(e, list):
+        return e
+    if isinstance(e, str):
+        try:
+            return ast.literal_eval(e)
+        except:
+            return None
+    return None
+
 def semantic_search(df, query, top_k=5):
-    resp = openai_client.embeddings.create(model="text-embedding-3-small", input=query)
-    query_emb = np.array(resp.data[0].embedding)
+    if df.empty:
+        return df
+    query_emb = openai_client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    ).data[0].embedding
+    df["embedding"] = df["embedding"].apply(fix_embedding)
+    df = df[df["embedding"].notnull()]
     df["similarity"] = df["embedding"].apply(lambda e: cosine_similarity([query_emb], [e])[0][0])
-    results = df.sort_values("similarity", ascending=False).head(top_k)
-    return results
+    return df.sort_values("similarity", ascending=False).head(top_k)
 
 # ---------------------------
 # Streamlit UI
@@ -326,6 +319,9 @@ pdf_df, reports_df = load_data()
 if pdf_df is None or pdf_df.empty:
     st.warning("No pdf_summaries rows found in Supabase.")
     st.stop()
+
+# (Sidebar, tabs, charts, clustering, semantic search, footer remain unchanged)
+# ... your existing UI code goes here ...
 
 # Sidebar filters
 st.sidebar.header("Filters & Controls")
