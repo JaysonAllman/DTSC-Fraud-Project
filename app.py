@@ -14,7 +14,39 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 from openai import OpenAI
 
-load_dotenv()
+# -----------------------------
+# 1️⃣ Load environment variables
+# -----------------------------
+load_dotenv()  # This reads your .env file
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    st.error("❌ OPENAI_API_KEY not found. Please check your .env file.")
+    st.stop()  # stop the app if key is missing
+
+# -----------------------------
+# 2️⃣ Initialize OpenAI client
+# -----------------------------
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# -----------------------------
+# 3️⃣ Streamlit UI
+# -----------------------------
+st.title("OpenAI Test App")
+
+prompt = st.text_input("Enter a prompt:")
+
+if st.button("Generate"):
+    if prompt:
+        # Example usage
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        st.write(response.choices[0].message.content)
+    else:
+        st.warning("Please enter a prompt first.")
 
 # ---------------------------
 # Configuration
@@ -28,7 +60,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.stop()
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ---------------------------
 # Helpers
