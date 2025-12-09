@@ -305,7 +305,7 @@ with tab1:
     filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
 
     # 4️⃣ Name clusters based on top fraud types
-    def name_clusters(df):
+   def name_clusters(df):
     cluster_names = {}
     for c in df["cluster"].unique():
         subset = df[df["cluster"] == c]
