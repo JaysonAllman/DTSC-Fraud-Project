@@ -294,60 +294,90 @@ with tab1:
     # Quarter note
     if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
 
-    # -----------------------------
+    # --------------------------------
     # Fraud Scoring, Clustering & Risk Levels
-    # -----------------------------
+    # --------------------------------
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
 
-    # Copy filtered data for scoring
     filtered_scoring = filtered.copy()
 
-    # 1️⃣ Compute fraud scores for each row
-    filtered_scoring["fraud_score"] = filtered_scoring.apply(compute_fraud_score, axis=1)
+    # --------------------------
+    # Compute clusters (PCA + KMeans)
+    # --------------------------
+    if not filtered_scoring.empty and "embedding" in filtered_scoring.columns:
 
-    # 2️⃣ Clean embeddings for clustering
-    filtered_scoring["embedding"] = filtered_scoring["embedding"].apply(fix_embedding)
-    df_embed = filtered_scoring[filtered_scoring["embedding"].notnull()].copy()
+        embeddings = filtered_scoring["embedding"].apply(fix_embedding).dropna().tolist()
 
-    # 3️⃣ Perform KMeans clustering
-    n_clusters = min(5, len(df_embed))  # avoid more clusters than rows
-    if not df_embed.empty:
-        embeddings = np.array(df_embed["embedding"].tolist(), dtype=np.float32)
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        df_embed["cluster_id"] = kmeans.fit_predict(embeddings)
+        if embeddings:
+            embeddings = np.array(embeddings, dtype=np.float32)
+
+            # dynamic cluster count
+            n_clusters = min(8, max(2, len(embeddings) // 5))
+
+            # PCA for separation
+            if len(embeddings) >= n_clusters:
+                from sklearn.decomposition import PCA
+                pca = PCA(n_components=min(50, embeddings.shape[1]), random_state=42)
+                embeddings_reduced = pca.fit_transform(embeddings)
+            else:
+                embeddings_reduced = embeddings
+
+            # KMeans
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            filtered_scoring = filtered_scoring.iloc[:embeddings_reduced.shape[0]].copy()
+            filtered_scoring["cluster"] = kmeans.fit_predict(embeddings_reduced)
+
+        else:
+            filtered_scoring["cluster"] = 0
+
     else:
-        df_embed["cluster_id"] = []
+        filtered_scoring["cluster"] = 0
 
-    # 4️⃣ Merge cluster assignments back to main dataframe
-    filtered_scoring = filtered_scoring.merge(
-        df_embed[["title", "cluster_id"]], on="title", how="left"
-    )
 
-    # 5️⃣ Compute cluster-level fraud weight
+    # --------------------------
+    # Compute fraud score + weight
+    # --------------------------
     filtered_scoring = compute_fraud_weight(filtered_scoring)
-
-    # 6️⃣ Assign risk levels based on fraud_score
     filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
 
-    # 7️⃣ Generate descriptive cluster names
+
+    # ------------------------------------------
+    # Semantic cluster labeling (non-repeating!)
+    # ------------------------------------------
     cluster_labels = {}
-    for cid, group in filtered_scoring.groupby("cluster_id"):
-        # Get top 2 fraud types by total count in the cluster
-        totals = aggregate_fraud_type_counts(group)
-        top_types = sorted(totals.items(), key=lambda x: -x[1])
-        top_desc = [t[0] for t in top_types[:2]] if top_types else ["Other"]
-        cluster_labels[cid] = ", ".join(top_desc)
 
-    filtered_scoring["cluster_label"] = filtered_scoring["cluster_id"].map(cluster_labels)
+    for cluster_id, group in filtered_scoring.groupby("cluster"):
+        # top 3 REAL distinguishing keywords
+        kw_counts = aggregate_keyword_counts(group)
+        sorted_kw = sorted(kw_counts.items(), key=lambda x: -x[1])
 
-    # 8️⃣ Display table
+        # get 3 unique keywords that aren't already used
+        chosen = []
+        for kw, count in sorted_kw:
+            if all(kw not in name for name in cluster_labels.values()):
+                chosen.append(kw)
+            if len(chosen) == 3:
+                break
+
+        # final fallback
+        if not chosen:
+            chosen = [f"Cluster {cluster_id}"]
+
+        cluster_labels[cluster_id] = ", ".join(chosen)
+
+    filtered_scoring["cluster_label"] = filtered_scoring["cluster"].map(cluster_labels)
+
+
+    # --------------------------
+    # Display results
+    # --------------------------
     st.dataframe(
-        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        filtered_scoring[["title","fraud_score","fraud_weight","risk_level","cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 9️⃣ Show cluster distribution
+    # Cluster distribution chart
     st.subheader("Cluster Distribution")
     cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
