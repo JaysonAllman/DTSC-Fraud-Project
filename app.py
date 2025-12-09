@@ -292,10 +292,34 @@ with tab1:
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
 
-    # Copy filtered data for scoring
-    filtered_scoring = filtered.copy()
+    # Copy filtered data for scoring and clustering
+    df_scoring = filtered.copy()
 
-    # 1️⃣ Define manual clusters
+    # 1️⃣ Compute fraud scores for each report
+    df_scoring["fraud_score"] = df_scoring.apply(compute_fraud_score, axis=1)
+
+    # 2️⃣ Fix and clean embeddings for clustering
+    df_scoring["embedding_clean"] = df_scoring["embedding"].apply(fix_embedding)
+    df_cluster = df_scoring[df_scoring["embedding_clean"].notnull()].copy()
+
+    # 3️⃣ Apply K-Means clustering based on embeddings
+    n_clusters = min(5, len(df_cluster))  # Adjust clusters if fewer rows
+    if not df_cluster.empty:
+        embeddings = np.array(df_cluster["embedding_clean"].tolist(), dtype=np.float32)
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        df_cluster["cluster"] = kmeans.fit_predict(embeddings)
+        # Merge cluster labels back
+        df_scoring = df_scoring.merge(df_cluster[["title","cluster"]], on="title", how="left")
+    else:
+        df_scoring["cluster"] = None
+
+    # 4️⃣ Compute cluster-level fraud weight
+    df_scoring = compute_fraud_weight(df_scoring)
+
+    # 5️⃣ Assign risk levels
+    df_scoring["risk_level"] = df_scoring["fraud_weight"].apply(risk_level)
+
+    # 6️⃣ Assign manual cluster labels for readability
     FRAUD_CLUSTERS = {
         "Financial Fraud": [
             "Advanced Fee Fraud",
@@ -334,41 +358,31 @@ with tab1:
         ]
     }
 
-       # 2️⃣ Assign manual cluster label for each row
     def assign_manual_cluster(row):
-        types_in_row = row.get("fraud_type_counts_parsed", {}) or {}
-        types_in_row_normalized = [str(ft).strip().lower() for ft in types_in_row.keys()]
-    
+        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
         for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
-            cluster_types_normalized = [ct.strip().lower() for ct in cluster_types]
-            if any(ft in cluster_types_normalized for ft in types_in_row_normalized):
+            if any(ft in cluster_types for ft in types_in_row):
                 return cluster_name
         return "Other"
 
-    filtered_scoring["cluster_label"] = filtered_scoring.apply(assign_manual_cluster, axis=1)
+    df_scoring["cluster_label"] = df_scoring.apply(assign_manual_cluster, axis=1)
 
-    # 3️⃣ Compute fraud scores
-    filtered_scoring["fraud_score"] = filtered_scoring.apply(compute_fraud_score, axis=1)
-
-    # 4️⃣ Compute cluster-based fraud weight
-    cluster_avg = filtered_scoring.groupby("cluster_label")["fraud_score"].transform("mean")
-    filtered_scoring["fraud_weight_raw"] = filtered_scoring["fraud_score"] * cluster_avg
-    scaler = MinMaxScaler()
-    filtered_scoring["fraud_weight"] = scaler.fit_transform(filtered_scoring[["fraud_weight_raw"]])
-
-    # 5️⃣ Assign risk levels
-    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
-
-    # 6️⃣ Display detailed table
+    # 7️⃣ Display scoring table
     st.dataframe(
-        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        df_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster", "cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 7️⃣ Show cluster distribution
-    st.subheader("Cluster Distribution")
-    cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
+    # 8️⃣ Cluster distribution chart
+    st.subheader("Cluster Distribution (Manual Labels)")
+    cluster_counts = df_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
+
+    # 9️⃣ K-Means cluster distribution chart (optional)
+    if df_cluster.shape[0] > 0:
+        st.subheader("Cluster Distribution (K-Means)")
+        kmeans_counts = df_cluster.groupby("cluster").size().reset_index(name="count")
+        st.bar_chart(kmeans_counts.set_index("cluster"))
 
 with tab2:
     st.subheader("Semantic Search")
