@@ -41,7 +41,7 @@ def parse_json_field(field: Any) -> Dict:
     if isinstance(field, dict): return field
     if isinstance(field, str):
         try: return json.loads(field)
-        except:
+        except: 
             try: return json.loads(field.replace("'", '"'))
             except: return {}
     return {}
@@ -78,9 +78,6 @@ def flatten_keyword_counts(keyword_json: Dict) -> Dict[str,int]:
 
 def aggregate_fraud_type_counts(rows: pd.DataFrame) -> Dict[str,int]:
     totals = {}
-    # safe iteration if column missing/empty
-    if "fraud_type_counts_parsed" not in rows.columns:
-        return totals
     for d in rows["fraud_type_counts_parsed"]:
         for k,v in (d or {}).items():
             try: c = int(v)
@@ -90,8 +87,6 @@ def aggregate_fraud_type_counts(rows: pd.DataFrame) -> Dict[str,int]:
 
 def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str,int]:
     totals = {}
-    if "keyword_counts_parsed" not in rows.columns:
-        return totals
     for d in rows["keyword_counts_parsed"]:
         flattened = flatten_keyword_counts(d)
         for term, count in flattened.items():
@@ -150,106 +145,59 @@ def get_llm_report_for_period(reports_df: pd.DataFrame, selection_mode: str, sel
     return ""
 
 def compute_fraud_score(row, kw_weight=1.0, ft_weight=1.5):
-    kw_count = 0
-    ft_count = 0
-    try:
-        kw_count = sum(flatten_keyword_counts(row["keyword_counts_parsed"]).values())
-    except Exception:
-        kw_count = 0
-    try:
-        ft_count = sum(row["fraud_type_counts_parsed"].values() if row["fraud_type_counts_parsed"] else [])
-    except Exception:
-        ft_count = 0
+    kw_count=sum(flatten_keyword_counts(row["keyword_counts_parsed"]).values())
+    ft_count=sum(row["fraud_type_counts_parsed"].values() if row["fraud_type_counts_parsed"] else [])
     return kw_weight*kw_count + ft_weight*ft_count
 
 def compute_clusters(df, n_clusters=5):
-    # keep original but not used in updated block; retained for compatibility
     if df.empty or "embedding" not in df.columns: return df
-    df = df[df["embedding"].notna()].copy()
-    cleaned = []
+    df=df[df["embedding"].notna()].copy()
+    cleaned=[]
     for e in df["embedding"]:
         try:
             if isinstance(e,str): e=json.loads(e)
             if not isinstance(e,(list,tuple)): cleaned.append(None); continue
             cleaned.append([float(x) for x in e])
         except: cleaned.append(None)
-    df["embedding_clean"] = cleaned
-    df = df[df["embedding_clean"].notna()].copy()
+    df["embedding_clean"]=cleaned
+    df=df[df["embedding_clean"].notna()].copy()
     if df.empty: st.warning("All embeddings invalid"); return df
-    embeddings = np.array(df["embedding_clean"].tolist(), dtype=np.float32)
+    embeddings=np.array(df["embedding_clean"].tolist(), dtype=np.float32)
     if embeddings.ndim !=2: st.error(f"❌ Embeddings must be 2D"); return df
-    if len(embeddings) < n_clusters: n_clusters = max(1, len(embeddings))
+    if len(embeddings)<n_clusters: n_clusters=max(1,len(embeddings))
     try:
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        df["cluster"] = kmeans.fit_predict(embeddings)
+        kmeans=KMeans(n_clusters=n_clusters, random_state=42)
+        df["cluster"]=kmeans.fit_predict(embeddings)
     except Exception as e:
         st.error(f"❌ KMeans failed: {e}"); return df
     return df
 
 def compute_fraud_weight(df):
-    # Ensure fraud_score present
-    if "fraud_score" not in df.columns:
-        df["fraud_score"] = df.apply(compute_fraud_score, axis=1)
-
-    # Ensure cluster column present: if not, set to -1 (singular cluster)
-    if "cluster" not in df.columns:
-        df["cluster"] = -1
-
-    # compute cluster mean safely (works even if cluster == -1)
-    try:
-        cluster_avg = df.groupby("cluster")["fraud_score"].transform("mean")
-    except KeyError:
-        # fallback: single global average
-        cluster_avg = pd.Series(df["fraud_score"].mean(), index=df.index)
-
-    global_avg = df["fraud_score"].mean() if not df["fraud_score"].empty else 1.0
-
-    # fraud_weight: higher when fraud_score is higher relative to cluster & global
-    # add small epsilon to avoid division by zero
-    eps = 1e-9
-    df["fraud_weight"] = (
-        0.6 * (df["fraud_score"] / (cluster_avg + eps)) +
-        0.4 * (df["fraud_score"] / (global_avg + eps))
-    )
-
-    # Normalize to 0-1 so it's easier to compare if needed
-    try:
-        scaler = MinMaxScaler()
-        df["fraud_weight"] = scaler.fit_transform(df[["fraud_weight"]])
-    except Exception:
-        # if scaler fails, keep raw
-        pass
-
+    if "fraud_score" not in df.columns: df["fraud_score"]=df.apply(compute_fraud_score, axis=1)
+    cluster_avg=df.groupby("cluster")["fraud_score"].transform("mean")
+    df["fraud_weight_raw"]=df["fraud_score"]*cluster_avg
+    scaler=MinMaxScaler()
+    df["fraud_weight"]=scaler.fit_transform(df[["fraud_weight_raw"]])
     return df
 
 def risk_level(score):
-    # risk is based on fraud_score (not fraud_weight) per your request
-    try:
-        s = float(score)
-    except Exception:
-        s = 0.0
-    if s < 30: return "Low"
-    elif s <= 100: return "Medium"
+    if score<30: return "Low"
+    elif score<=100: return "Medium"
     return "High"
 
 def fix_embedding(e):
     if isinstance(e,list): return e
     if isinstance(e,str):
         try: return ast.literal_eval(e)
-        except:
-            try: return json.loads(e)
-            except: return None
+        except: return None
     return None
 
 def semantic_search(df, query, top_k=5):
     if df.empty: return df
-    query_emb = openai_client.embeddings.create(model="text-embedding-3-small", input=query).data[0].embedding
-    df["embedding"] = df["embedding"].apply(fix_embedding)
-    df = df[df["embedding"].notnull()].copy()
-    if df.empty: return df
-    # compute similarities
-    q = np.array(query_emb, dtype=np.float32)
-    df["similarity"] = df["embedding"].apply(lambda e: float(cosine_similarity([q], [np.array(e, dtype=np.float32)])[0][0]))
+    query_emb=openai_client.embeddings.create(model="text-embedding-3-small", input=query).data[0].embedding
+    df["embedding"]=df["embedding"].apply(fix_embedding)
+    df=df[df["embedding"].notnull()]
+    df["similarity"]=df["embedding"].apply(lambda e: cosine_similarity([query_emb],[e])[0][0])
     return df.sort_values("similarity", ascending=False).head(top_k)
 
 # -----------------------------
@@ -313,16 +261,18 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        # no subheader per your request; present the table
+        st.markdown("**Aggregate Fraud Counts for Selected Period**")
+        # Convert to DataFrame and sort descending
         df_fraud = pd.DataFrame(
-            sorted(fraud_totals.items(), key=lambda x: -x[1]),
+            sorted(fraud_totals.items(), key=lambda x: -x[1]), 
             columns=["Fraud Type", "Count"]
         )
         # Scrollable table with fixed height
         st.dataframe(df_fraud, height=400)
 
     with col2:
-        # Top keywords as list (not table)
+        st.markdown(f"**Top {topk} Keywords**")
+        # Keep as a list
         for kw, cnt in get_top_keywords(keyword_totals, topk):
             st.write(f"**{kw}** — {cnt:,}")
 
@@ -336,127 +286,77 @@ with tab1:
     # Quarter note
     if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
 
-    # --------------------------------
-    # Fraud Scoring, Clustering & Risk Levels
-    # --------------------------------
+   # -----------------------------
+    # Fraud scoring, manual clustering & risk levels
+    # -----------------------------
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
 
+    # Copy filtered data for scoring
     filtered_scoring = filtered.copy()
 
-    # --------------------------
-    # Compute clusters (PCA + KMeans) robustly and keep index alignment
-    # --------------------------
-    # initialize cluster to -1 for rows without embeddings
-    filtered_scoring["cluster"] = -1
-
-    if not filtered_scoring.empty and "embedding" in filtered_scoring.columns:
-        # parse embedding column into lists
-        emb_series = filtered_scoring["embedding"].apply(fix_embedding)
-        mask_has_emb = emb_series.notna()
-        if mask_has_emb.sum() > 0:
-            # build numpy array (N, D)
-            try:
-                embeddings = np.vstack(emb_series[mask_has_emb].to_list()).astype(np.float32)
-            except Exception as e:
-                st.warning(f"Could not stack embeddings: {e}")
-                embeddings = None
-
-            if embeddings is not None and embeddings.shape[0] > 0:
-                # dynamic cluster count: between 2 and 8, but not exceeding samples
-                n_clusters = min(8, max(2, embeddings.shape[0] // 5))
-                n_clusters = min(n_clusters, embeddings.shape[0])
-
-                # PCA when helpful (reduce to <= 50 dims or number of features)
-                if embeddings.shape[1] > 50:
-                    from sklearn.decomposition import PCA
-                    n_comp = min(50, embeddings.shape[1], embeddings.shape[0])
-                    try:
-                        pca = PCA(n_components=n_comp, random_state=42)
-                        embeddings_reduced = pca.fit_transform(embeddings)
-                    except Exception as e:
-                        st.warning(f"PCA failed, using raw embeddings: {e}")
-                        embeddings_reduced = embeddings
-                else:
-                    embeddings_reduced = embeddings
-
-                # Fit KMeans
-                try:
-                    # If only 1 sample, assign cluster 0
-                    if embeddings_reduced.shape[0] == 1:
-                        labels = np.array([0])
-                    else:
-                        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-                        labels = kmeans.fit_predict(embeddings_reduced)
-                    # assign back to original dataframe aligned by mask_has_emb index
-                    filtered_scoring.loc[mask_has_emb, "cluster"] = labels
-                except Exception as e:
-                    st.warning(f"KMeans failed: {e}")
-                    # leave cluster as -1 for all
-            else:
-                # no valid embeddings
-                filtered_scoring["cluster"] = -1
-        else:
-            filtered_scoring["cluster"] = -1
-    else:
-        filtered_scoring["cluster"] = -1
-
-    # --------------------------
-    # Compute fraud score + weight (uses 'cluster' column)
-    # --------------------------
+    # 1️⃣ Compute fraud scores and weights
     filtered_scoring = compute_fraud_weight(filtered_scoring)
+
+    # 2️⃣ Assign risk levels based on fraud_score
     filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
 
-    # ------------------------------------------
-    # Semantic cluster labeling (make non-repeating)
-    # ------------------------------------------
-    cluster_labels = {}
-    used_labels = set()
-    for cluster_id, group in filtered_scoring.groupby("cluster"):
-        kw_counts = aggregate_keyword_counts(group)
-        sorted_kw = [k for k,v in sorted(kw_counts.items(), key=lambda x: -x[1])]
+    # 3️⃣ Define manual clusters
+    FRAUD_CLUSTERS = {
+        "Financial Fraud": [
+            "Advanced Fee Fraud",
+            "Credit Card/Check Fraud",
+            "Non-Payment/Non-Delivery Fraud",
+            "Overpayment",
+            "Investment Fraud",
+            "Business Email Compromise"
+        ],
+        "Cyber Attacks": [
+            "Malware",
+            "Ransomware",
+            "Botnet",
+            "Phishing/Spoofing",
+            "SIM Swap",
+            "Tech Support Fraud"
+        ],
+        "Data & Privacy Breaches": [
+            "Data Breach",
+            "Personal Data Breach",
+            "Identity Theft",
+            "Intellectual Property Rights"
+        ],
+        "Violence & Extortion": [
+            "Extortion",
+            "Threats of Violence",
+            "Harassment/Stalking",
+            "Government Impersonation"
+        ],
+        "Personal & Romance Fraud": [
+            "Confidence/Romance Fraud",
+            "Lottery/Sweepstakes/Inheritance Fraud",
+            "Employment Fraud",
+            "Real Estate Fraud",
+            "Crimes Against Children"
+        ]
+    }
 
-        chosen = []
-        for kw in sorted_kw:
-            if kw and kw not in used_labels:
-                chosen.append(kw)
-                used_labels.add(kw)
-            if len(chosen) == 3:
-                break
+    # 4️⃣ Assign cluster label for each row based on fraud types present
+    def assign_manual_cluster(row):
+        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
+        for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
+            if any(ft in cluster_types for ft in types_in_row):
+                return cluster_name
+        return "Other"
 
-        # fallback: use fraud types if keywords not available
-        if not chosen:
-            ft_counts = aggregate_fraud_type_counts(group)
-            sorted_ft = [k for k,v in sorted(ft_counts.items(), key=lambda x: -x[1])]
-            for ft in sorted_ft:
-                if ft and ft not in used_labels:
-                    chosen.append(ft)
-                    used_labels.add(ft)
-                if len(chosen) == 3:
-                    break
+    filtered_scoring["cluster_label"] = filtered_scoring.apply(assign_manual_cluster, axis=1)
 
-        if not chosen:
-            label = f"Cluster {int(cluster_id)}"
-        else:
-            label = ", ".join(chosen)
-
-        # ensure label uniqueness (append id if necessary)
-        if label in used_labels and not label.startswith("Cluster "):
-            label = f"{label} (#{int(cluster_id)})"
-        cluster_labels[cluster_id] = label
-        used_labels.add(label)
-
-    filtered_scoring["cluster_label"] = filtered_scoring["cluster"].map(cluster_labels)
-
-    # --------------------------
-    # Display results
-    # --------------------------
+    # 5️⃣ Display detailed table
     st.dataframe(
-        filtered_scoring[["title","fraud_score","fraud_weight","risk_level","cluster_label"]]
+        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # Cluster distribution chart
+    # 6️⃣ Show cluster distribution
     st.subheader("Cluster Distribution")
     cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
@@ -482,7 +382,7 @@ st.markdown("""
 - Advanced Fee Fraud: An individual pays money to someone in anticipation of receiving something of greater value in return, but instead, receives significantly less than expected or nothing.
 - Business Email Compromise (BEC): BEC is a scam targeting businesses or individuals working with suppliers and/or businesses regularly performing wire transfer payments. These sophisticated scams are carried out by fraudsters by compromising email accounts and other forms of communication such as phone numbers and virtual meeting applications, through social engineering or computer intrusion techniques to conduct unauthorized transfer of funds.
 - Botnet: A botnet is a group of two or more computers controlled and updated remotely for an illegal purchase such as a Distributed Denial of Service or Telephony Denial of Service attack or other nefarious activity.
-- Confidence/Romance Fraud: An individual believes they are in a relationship (family, friendly, or romantic) and is tricked into sending money, personal and financial information, or items of value to the perpetrator or to launder money or items to assist the perpetrator. This includes the Grandparent’s Scheme and any scheme in which the perpetrator preys on the targeted individual’s “heartstrings.”
+- Confidence/Romance Fraud: An individual believes they are in a relationship (family, friendly, or romantic) and are tricked into sending money, personal and financial information, or items of value to the perpetrator or to launder money or items to assist the perpetrator. This includes the Grandparent’s Scheme and any scheme in which the perpetrator preys on the targeted individual’s “heartstrings.”
 - Credit Card Fraud/Check Fraud: Credit card fraud is a wide-ranging term for theft and fraud committed using a credit card or any similar payment mechanism (ACH, EFT, recurring charge, etc.) as a fraudulent source of funds in a transaction.
 - Crimes Against Children: Anything related to the exploitation of children, including child abuse. 
 - Data Breach: A data breach in the cyber context is the use of a computer intrusion to acquire confidential or secured information. This does not include computer intrusions targeting personally owned computers, systems, devices, or personal accounts such as social media or financial accounts.
@@ -506,4 +406,3 @@ st.markdown("""
 - Threats of Violence: An expression of an intention to inflict pain, injury, self-harm, or death not in the context of extortion. 
 Information provided by: Internet Crime Complaint Center (IC3). “Internet Crime Complaint Center(IC3) | Annual Crime Report 2024.” Www.ic3.Gov, 2024, www.ic3.gov/.
 """)
-
