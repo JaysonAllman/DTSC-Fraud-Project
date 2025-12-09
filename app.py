@@ -286,8 +286,8 @@ with tab1:
     # Quarter note
     if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
 
-    # -----------------------------
-    # Fraud Scoring, Clustering & Risk Levels
+   # -----------------------------
+    # Fraud scoring, manual clustering & risk levels
     # -----------------------------
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
@@ -295,7 +295,13 @@ with tab1:
     # Copy filtered data for scoring
     filtered_scoring = filtered.copy()
 
-    # 1️⃣ Define manual clusters
+    # 1️⃣ Compute fraud scores and weights
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
+
+    # 2️⃣ Assign risk levels based on fraud_score
+    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
+
+    # 3️⃣ Define manual clusters
     FRAUD_CLUSTERS = {
         "Financial Fraud": [
             "Advanced Fee Fraud",
@@ -334,9 +340,9 @@ with tab1:
         ]
     }
 
-    # 2️⃣ Assign manual cluster label for each row
+    # 4️⃣ Assign cluster label for each row based on fraud types present
     def assign_manual_cluster(row):
-        types_in_row = row.get("fraud_type_counts_parsed", {}).keys()
+        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
         for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
             if any(ft in cluster_types for ft in types_in_row):
                 return cluster_name
@@ -344,25 +350,13 @@ with tab1:
 
     filtered_scoring["cluster_label"] = filtered_scoring.apply(assign_manual_cluster, axis=1)
 
-    # 3️⃣ Compute fraud scores
-    filtered_scoring["fraud_score"] = filtered_scoring.apply(compute_fraud_score, axis=1)
-
-    # 4️⃣ Compute cluster-based fraud weight
-    cluster_avg = filtered_scoring.groupby("cluster_label")["fraud_score"].transform("mean")
-    filtered_scoring["fraud_weight_raw"] = filtered_scoring["fraud_score"] * cluster_avg
-    scaler = MinMaxScaler()
-    filtered_scoring["fraud_weight"] = scaler.fit_transform(filtered_scoring[["fraud_weight_raw"]])
-
-    # 5️⃣ Assign risk levels
-    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
-
-    # 6️⃣ Display detailed table
+    # 5️⃣ Display detailed table
     st.dataframe(
         filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 7️⃣ Show cluster distribution
+    # 6️⃣ Show cluster distribution
     st.subheader("Cluster Distribution")
     cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
