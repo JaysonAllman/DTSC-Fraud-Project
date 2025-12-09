@@ -311,9 +311,6 @@ with tab1:
     if not llm_text: st.info("No LLM narrative found.")
     else: st.write(llm_text)
 
-    # Quarter note
-    if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
-
     # -----------------------------
     # Fraud scoring, clustering & risk levels
     # -----------------------------
