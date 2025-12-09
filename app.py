@@ -258,7 +258,6 @@ with tab1:
         st.altair_chart(chart,use_container_width=True)
 
     # Show aggregate counts and top keywords under chart
-    st.subheader("Aggregate Fraud Counts & Top Keywords")
     col1, col2 = st.columns(2)
 
     with col1:
