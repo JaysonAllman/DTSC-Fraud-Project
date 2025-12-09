@@ -271,7 +271,7 @@ with tab1:
         # Scrollable table with fixed height
         st.dataframe(df_fraud, height=400)
 
-        with col2:
+    with col2:
         st.markdown(f"**Top {topk} Keywords**")
         # Keep as a list
         for kw, cnt in get_top_keywords(keyword_totals, topk):
