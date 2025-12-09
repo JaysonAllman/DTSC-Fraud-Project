@@ -299,6 +299,14 @@ with tab1:
 
     melted["period_dt"] = melted["period"].apply(period_to_datetime)
 
+    # ⚠️ Show warning for quarterly selection
+    if selection_mode == "Quarter" and agg_resolution != "month": 
+        st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
+
+    # ⚠️ Show warning for yearly selection
+    if selection_mode == "Year" and agg_resolution == "year": 
+        st.info("⚠️ Trend resolution should be set to 'quarter' or 'month' when viewing a yearly period.")
+
     # -----------------------------
     # Plot trend chart
     # -----------------------------
