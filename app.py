@@ -246,28 +246,50 @@ tab1,tab2=st.tabs(["Dashboard","Semantic Search"])
 # -----------------------------
 # SIDEBAR — Fraud Type Filter
 # -----------------------------
-# Build full fraud-type list from fraud_totals so we include everything (not just ts_df's top_n)
+# Build full fraud-type list from fraud_totals
 all_fraud_types = sorted(list(fraud_totals.keys()))
 
-# Make sure 'All' is explicit and default selected
 fraud_type_options = ["All"] + all_fraud_types
 
 fraud_type_filter = st.sidebar.multiselect(
-    "Filter Fraud Types (optional)",
+    "Filter Fraud Types",
     options=fraud_type_options,
-    default=["All"],  # Default to All
-    help="Choose fraud types to show on the trend chart and aggregate table. 'All' shows every type."
+    default=["All"],
+    help="Choose fraud types to show on the chart and tables."
 )
 
-# Convert selection to effective list of fraud types (all if "All" selected or nothing selected)
+# Determine selected fraud types
 if not fraud_type_filter or "All" in fraud_type_filter:
     selected_fraud_types = all_fraud_types.copy()
 else:
-    # user might have accidentally included "All" plus other choices; ensure clean list
     selected_fraud_types = [f for f in fraud_type_filter if f != "All"]
 
+
+# ------------------------------------------
+# REBUILD ts_df AFTER applying the filter
+# ------------------------------------------
+# Filter the main dataset BEFORE building the time series
+filtered_for_ts = filtered[filtered["fraud_type"].isin(selected_fraud_types)]
+
+# Safeguard: if filtering removes everything, fall back to full data
+if filtered_for_ts.empty:
+    filtered_for_ts = filtered.copy()
+    selected_fraud_types = all_fraud_types.copy()
+
+# Build timeseries table fresh based on user-selected fraud types
+ts_df = (
+    filtered_for_ts
+    .groupby(["period", "fraud_type"])["count"]
+    .sum()
+    .reset_index()
+    .pivot(index="period", columns="fraud_type", values="count")
+    .fillna(0)
+    .reset_index()
+)
+
+
 # -----------------------------
-# TAB 1 (Trends) — use selected_fraud_types
+# TAB 1 — Trends
 # -----------------------------
 with tab1:
     st.subheader("Fraud type trends")
@@ -275,29 +297,21 @@ with tab1:
     if ts_df.empty:
         st.info("Not enough data for trend chart.")
     else:
-        # ⚠️ Warning for quarterly selection (show only above the chart)
+        # Warnings
         if selection_mode == "Quarter" and agg_resolution != "month":
             st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
 
-        # ⚠️ Warning for yearly selection
         if selection_mode == "Year" and agg_resolution == "year":
             st.info("⚠️ Trend resolution should be set to 'quarter' or 'month' when viewing a yearly period.")
 
-        # Melt DF and then filter by selected fraud types
-        melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
+        # Melt for Altair
+        melted = ts_df.melt(
+            id_vars=["period"],
+            var_name="fraud_type",
+            value_name="count"
+        )
 
-        # Ensure we only keep fraud types that actually exist in ts_df (some very small types might not be in ts_df)
-        # but still allow selection from the full list (we simply won't show ones not present in the timeseries).
-        present_types = melted["fraud_type"].unique().tolist()
-        plot_types = [t for t in selected_fraud_types if t in present_types]
-
-        # If none of the selected types are present in ts_df, fall back to all present_types to avoid empty chart
-        if not plot_types:
-            plot_types = present_types
-
-        melted = melted[melted["fraud_type"].isin(plot_types)]
-
-        # Map quarter -> month for plotting (use end month of quarter so lines show at quarter end)
+        # Convert period to actual date for plotting
         def quarter_to_month(period_str):
             if "-Q" in period_str:
                 year, q = period_str.split("-Q")
@@ -310,7 +324,7 @@ with tab1:
                     return pd.to_datetime(period_str)
                 except:
                     return pd.NaT
-
+        
         melted["period_dt"] = melted["period"].apply(quarter_to_month)
 
         chart = alt.Chart(melted).mark_line(point=True).encode(
@@ -323,18 +337,21 @@ with tab1:
         st.altair_chart(chart, use_container_width=True)
 
     # -----------------------------
-    # Aggregate counts + top keywords (apply same selected_fraud_types)
+    # Aggregate counts + top keywords
     # -----------------------------
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("**Aggregate Fraud Counts for Selected Period**")
+
         df_fraud = pd.DataFrame(
             sorted(fraud_totals.items(), key=lambda x: -x[1]),
             columns=["Fraud Type", "Count"]
         )
-        # Apply the sidebar selection to the aggregate table as well
+
+        # Apply filter
         df_fraud = df_fraud[df_fraud["Fraud Type"].isin(selected_fraud_types)]
+
         st.dataframe(df_fraud, height=400)
 
     with col2:
