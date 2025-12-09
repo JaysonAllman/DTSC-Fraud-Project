@@ -173,11 +173,19 @@ def compute_clusters(df, n_clusters=5):
     return df
 
 def compute_fraud_weight(df):
-    if "fraud_score" not in df.columns: df["fraud_score"]=df.apply(compute_fraud_score, axis=1)
-    cluster_avg=df.groupby("cluster")["fraud_score"].transform("mean")
-    df["fraud_weight_raw"]=df["fraud_score"]*cluster_avg
-    scaler=MinMaxScaler()
-    df["fraud_weight"]=scaler.fit_transform(df[["fraud_weight_raw"]])
+    if "cluster_id" not in df.columns:
+        df["cluster_id"] = -1  # fallback
+
+    # Replace "cluster" → "cluster_id"
+    cluster_avg = df.groupby("cluster_id")["fraud_score"].transform("mean")
+    global_avg = df["fraud_score"].mean()
+
+    # Weight = how risky vs both cluster & global
+    df["fraud_weight"] = (
+        0.6 * (df["fraud_score"] / (cluster_avg + 1e-6)) +
+        0.4 * (df["fraud_score"] / (global_avg + 1e-6))
+    )
+
     return df
 
 def risk_level(score):
