@@ -247,33 +247,34 @@ with tab1:
     st.subheader("Fraud type trends")
     if ts_df.empty: st.info("Not enough data for trend chart.")
     else:
-        melted=ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
+        melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
         
-        # Convert period like "Q3 2020" to datetime for proper charting
-        def convert_period_to_date(period):
-            if period.startswith("Q"):
+        # Map quarter to month for plotting
+        def quarter_to_month(period_str):
+            if "-Q" in period_str:
+                year, q = period_str.split("-Q")
+                year = int(year)
+                q = int(q)
+                # Map quarters to last month of quarter
+                month_map = {1: 3, 2: 6, 3: 9, 4: 12}
+                month = month_map[q]
+                return pd.Timestamp(year=year, month=month, day=1)
+            else:
+                # fallback for year or month strings
                 try:
-                    q, year = period.split()
-                    q = int(q.replace("Q",""))
-                    year = int(year)
-                    month = {1:3, 2:6, 3:9, 4:12}[q]
-                    return pd.Timestamp(year=year, month=month, day=1)
+                    return pd.to_datetime(period_str)
                 except:
                     return pd.NaT
-            try:
-                return pd.to_datetime(period)
-            except:
-                return pd.NaT
-
-        melted["period_dt"] = melted["period"].apply(convert_period_to_date)
-
-        chart=alt.Chart(melted).mark_line(point=True).encode(
+        
+        melted["period_dt"] = melted["period"].apply(quarter_to_month)
+        
+        chart = alt.Chart(melted).mark_line(point=True).encode(
             x=alt.X("period_dt:T", title="Period"),
             y=alt.Y("count:Q", title="Count"),
             color="fraud_type:N",
             tooltip=["period_dt:T","fraud_type:N","count:Q"]
         ).properties(width=900, height=400)
-        st.altair_chart(chart,use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
 
     # Show aggregate counts and top keywords under chart
     col1, col2 = st.columns(2)
