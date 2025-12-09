@@ -357,18 +357,38 @@ with tab1:
 
 with tab2:
     st.subheader("Semantic Search")
-    query=st.text_input("Enter search query:")
-    top_k=st.slider("Top results to show",1,10,5)
+    query = st.text_input("Enter search query:")
+    top_k = st.slider("Top results to show", 1, 10, 5)
+
+    def semantic_risk_level(row, kw_weight=1.0, ft_weight=1.5):
+        """Compute risk dynamically based on fraud_score and similarity to query."""
+        # Original fraud score
+        fraud_score = compute_fraud_score(row, kw_weight, ft_weight)
+        # Adjust by similarity (0-1)
+        adjusted_score = fraud_score * (1 + row.get("similarity", 0))
+        # Map to risk levels
+        if adjusted_score < 30:
+            return "Low"
+        elif adjusted_score <= 100:
+            return "Medium"
+        else:
+            return "High"
+
     if query:
-        search_results=semantic_search(pdf_df,query,top_k=top_k)
-        for _,row in search_results.iterrows():
-            snippet=(row.get("text","")[:500]+"...") if row.get("text") else ""
-            weight=row.get("fraud_weight",0)
-            sim_score=row.get("similarity",0)
-            st.markdown(f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk_level(weight)}")
-            st.write(snippet)
-            st.markdown(f"[View Article]({row.get('url','')})")  # requires url field
-            st.markdown("---")
+        search_results = semantic_search(pdf_df, query, top_k=top_k)
+        
+        if search_results.empty:
+            st.info("No results found.")
+        else:
+            for _, row in search_results.iterrows():
+                snippet = (row.get("text","")[:500]+"...") if row.get("text") else ""
+                risk = semantic_risk_level(row)
+                sim_score = row.get("similarity", 0)
+                
+                st.markdown(f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk}")
+                st.write(snippet)
+                st.markdown(f"[View Article]({row.get('url','')})")  # requires url field
+                st.markdown("---")
 
 # Footer / tips
 st.markdown("""
