@@ -245,8 +245,13 @@ tab1,tab2=st.tabs(["Dashboard","Semantic Search"])
 
 with tab1:
     st.subheader("Fraud type trends")
-    if ts_df.empty: st.info("Not enough data for trend chart.")
+    if ts_df.empty: 
+        st.info("Not enough data for trend chart.")
     else:
+        # ⚠️ Show warning above the chart
+        if selection_mode=="Quarter": 
+            st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
+
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
         
         # Map quarter to month for plotting
@@ -303,7 +308,7 @@ with tab1:
     else: st.write(llm_text)
 
     # Quarter note
-    if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
+    if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
 
     # -----------------------------
     # Fraud scoring, clustering & risk levels
