@@ -296,6 +296,7 @@ with tab1:
     filtered_scoring = filtered.copy()
 
     # 1️⃣ Compute fraud scores and weights
+    filtered_scoring["cluster"] = filtered_scoring["cluster_label"]
     filtered_scoring = compute_fraud_weight(filtered_scoring)
 
     # 2️⃣ Assign risk levels based on fraud_score
