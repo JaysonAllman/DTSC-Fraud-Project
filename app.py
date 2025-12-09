@@ -258,23 +258,11 @@ with tab1:
         st.altair_chart(chart,use_container_width=True)
 
     # Show aggregate counts and top keywords under chart
-    col1, col2 = st.columns(2)
+    st.subheader("Aggregate Fraud Counts for Selected Period")
+    for k,v in sorted(fraud_totals.items(), key=lambda x:-x[1]): st.write(f"**{k}**: {v:,}")
 
-    with col1:
-        st.markdown("**Aggregate Fraud Counts for Selected Period**")
-        # Convert to DataFrame and sort descending
-        df_fraud = pd.DataFrame(
-            sorted(fraud_totals.items(), key=lambda x: -x[1]), 
-            columns=["Fraud Type", "Count"]
-        )
-        # Scrollable table with fixed height
-        st.dataframe(df_fraud, height=400)
-
-    with col2:
-        st.markdown(f"**Top {topk} Keywords**")
-        # Keep as a list
-        for kw, cnt in get_top_keywords(keyword_totals, topk):
-            st.write(f"**{kw}** — {cnt:,}")
+    st.subheader(f"Top {topk} Keywords")
+    for kw,cnt in get_top_keywords(keyword_totals, topk): st.write(f"**{kw}** — {cnt:,}")
 
     # AI Narrative
     st.markdown("---")
@@ -286,79 +274,19 @@ with tab1:
     # Quarter note
     if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
 
-   # -----------------------------
-    # Fraud scoring, manual clustering & risk levels
-    # -----------------------------
+    # Fraud scoring & clustering
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
+    filtered_scoring=filtered.copy()
+    filtered_scoring=compute_clusters(filtered_scoring)
+    filtered_scoring=compute_fraud_weight(filtered_scoring)
+    filtered_scoring["risk_level"]=filtered_scoring["fraud_score"].apply(risk_level)
+    cluster_labels={i:f"Cluster {i}" for i in filtered_scoring["cluster"].unique()}
+    filtered_scoring["cluster_label"]=filtered_scoring["cluster"].map(cluster_labels)
+    st.dataframe(filtered_scoring[["title","fraud_score","cluster_label","fraud_weight","risk_level"]].sort_values("fraud_weight",ascending=False))
 
-    # Copy filtered data for scoring
-    filtered_scoring = filtered.copy()
-
-    # 1️⃣ Compute fraud scores and weights
-    filtered_scoring = compute_fraud_weight(filtered_scoring)
-
-    # 2️⃣ Assign risk levels based on fraud_score
-    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
-
-    # 3️⃣ Define manual clusters
-    FRAUD_CLUSTERS = {
-        "Financial Fraud": [
-            "Advanced Fee Fraud",
-            "Credit Card/Check Fraud",
-            "Non-Payment/Non-Delivery Fraud",
-            "Overpayment",
-            "Investment Fraud",
-            "Business Email Compromise"
-        ],
-        "Cyber Attacks": [
-            "Malware",
-            "Ransomware",
-            "Botnet",
-            "Phishing/Spoofing",
-            "SIM Swap",
-            "Tech Support Fraud"
-        ],
-        "Data & Privacy Breaches": [
-            "Data Breach",
-            "Personal Data Breach",
-            "Identity Theft",
-            "Intellectual Property Rights"
-        ],
-        "Violence & Extortion": [
-            "Extortion",
-            "Threats of Violence",
-            "Harassment/Stalking",
-            "Government Impersonation"
-        ],
-        "Personal & Romance Fraud": [
-            "Confidence/Romance Fraud",
-            "Lottery/Sweepstakes/Inheritance Fraud",
-            "Employment Fraud",
-            "Real Estate Fraud",
-            "Crimes Against Children"
-        ]
-    }
-
-    # 4️⃣ Assign cluster label for each row based on fraud types present
-    def assign_manual_cluster(row):
-        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
-        for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
-            if any(ft in cluster_types for ft in types_in_row):
-                return cluster_name
-        return "Other"
-
-    filtered_scoring["cluster_label"] = filtered_scoring.apply(assign_manual_cluster, axis=1)
-
-    # 5️⃣ Display detailed table
-    st.dataframe(
-        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
-        .sort_values("fraud_weight", ascending=False)
-    )
-
-    # 6️⃣ Show cluster distribution
     st.subheader("Cluster Distribution")
-    cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
+    cluster_counts=filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
 
 with tab2:
