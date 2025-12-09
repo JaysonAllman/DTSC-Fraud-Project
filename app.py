@@ -281,12 +281,14 @@ with tab1:
         if selection_mode == "Year" and agg_resolution == "year":
             st.info("⚠️ Trend resolution should be set to 'quarter' or 'month' when viewing a yearly period.")
 
+        # Melt DF for plotting
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
 
-        # Keep only selected fraud types
-        melted = melted[melted["fraud_type"].isin(selected_fraud_types)]
+        # Keep only selected fraud types (or all if "All")
+        if selected_fraud_types:
+            melted = melted[melted["fraud_type"].isin(selected_fraud_types)]
 
-        # Map quarter to month for plotting
+        # Map quarter -> month for plotting
         def quarter_to_month(period_str):
             if "-Q" in period_str:
                 year, q = period_str.split("-Q")
@@ -311,22 +313,33 @@ with tab1:
 
         st.altair_chart(chart, use_container_width=True)
 
-    # Show aggregate counts under chart (apply same filter)
+    # -----------------------------
+    # Aggregate counts + top keywords (apply fraud type filter)
+    # -----------------------------
     col1, col2 = st.columns(2)
 
+    # Aggregate Fraud Counts
     with col1:
         st.markdown("**Aggregate Fraud Counts for Selected Period**")
         df_fraud = pd.DataFrame(
             sorted(fraud_totals.items(), key=lambda x: -x[1]),
             columns=["Fraud Type", "Count"]
         )
-        # Apply sidebar filter
         df_fraud = df_fraud[df_fraud["Fraud Type"].isin(selected_fraud_types)]
         st.dataframe(df_fraud, height=400)
 
+    # Top Keywords filtered by selected fraud types
     with col2:
         st.markdown(f"**Top {topk} Keywords**")
-        for kw, cnt in get_top_keywords(keyword_totals, topk):
+        # Filter PDF rows to only those containing selected fraud types
+        filtered_for_keywords = filtered.copy()
+        filtered_for_keywords = filtered_for_keywords[
+            filtered_for_keywords["fraud_type_counts_parsed"].apply(
+                lambda d: any(ft in d for ft in selected_fraud_types)
+            )
+        ]
+        filtered_keyword_totals = aggregate_keyword_counts(filtered_for_keywords)
+        for kw, cnt in get_top_keywords(filtered_keyword_totals, topk):
             st.write(f"**{kw}** — {cnt:,}")
 
     # AI Narrative
