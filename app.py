@@ -217,7 +217,7 @@ if pdf_df.empty: st.warning("No pdf_summaries rows found."); st.stop()
 st.sidebar.header("Filters & Controls")
 years=sorted(pdf_df["year"].unique().tolist())
 min_year,max_year=min(years),max(years)
-selection_mode=st.sidebar.selectbox("Select time window type", ["All","Year","Quarter","Custom Range (months)"])
+selection_mode=st.sidebar.selectbox("Select time window type", ["All","Year","Quarter"])
 selection_value=None
 if selection_mode=="Year":
     sel_year=st.sidebar.selectbox("Year", years, index=len(years)-1)
