@@ -292,49 +292,56 @@ with tab1:
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
 
-    # Copy filtered data for scoring and clustering
-    df_scoring = filtered.copy()
+    # Copy filtered data for scoring
+    filtered_scoring = filtered.copy()
 
-    # 1️⃣ Compute fraud scores for each report
-    df_scoring["fraud_score"] = df_scoring.apply(compute_fraud_score, axis=1)
+    # 1️⃣ Compute fraud scores for each row
+    filtered_scoring["fraud_score"] = filtered_scoring.apply(compute_fraud_score, axis=1)
 
-    # 2️⃣ Fix and clean embeddings for clustering
-    df_scoring["embedding_clean"] = df_scoring["embedding"].apply(fix_embedding)
-    df_cluster = df_scoring[df_scoring["embedding_clean"].notnull()].copy()
+    # 2️⃣ Clean embeddings for clustering
+    filtered_scoring["embedding"] = filtered_scoring["embedding"].apply(fix_embedding)
+    df_embed = filtered_scoring[filtered_scoring["embedding"].notnull()].copy()
 
-    # 3️⃣ Apply K-Means clustering based on embeddings
-    n_clusters = min(5, len(df_cluster))  # Adjust clusters if fewer rows
-    if not df_cluster.empty:
-        embeddings = np.array(df_cluster["embedding_clean"].tolist(), dtype=np.float32)
+    # 3️⃣ Perform KMeans clustering
+    n_clusters = min(5, len(df_embed))  # avoid more clusters than rows
+    if not df_embed.empty:
+        embeddings = np.array(df_embed["embedding"].tolist(), dtype=np.float32)
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-        df_cluster["cluster"] = kmeans.fit_predict(embeddings)
-
-        # Assign unique cluster names automatically
-        cluster_names = [f"Cluster {i}" for i in sorted(df_cluster["cluster"].unique())]
-        cluster_map = dict(zip(sorted(df_cluster["cluster"].unique()), cluster_names))
-        df_cluster["cluster_label"] = df_cluster["cluster"].map(cluster_map)
-
-        # Merge cluster labels back to main dataframe
-        df_scoring = df_scoring.merge(df_cluster[["title","cluster","cluster_label"]], on="title", how="left")
+        df_embed["cluster_id"] = kmeans.fit_predict(embeddings)
     else:
-        df_scoring["cluster"] = None
-        df_scoring["cluster_label"] = None
+        df_embed["cluster_id"] = []
 
-    # 4️⃣ Compute cluster-level fraud weight
-    df_scoring = compute_fraud_weight(df_scoring)
+    # 4️⃣ Merge cluster assignments back to main dataframe
+    filtered_scoring = filtered_scoring.merge(
+        df_embed[["title", "cluster_id"]], on="title", how="left"
+    )
 
-    # 5️⃣ Assign risk levels
-    df_scoring["risk_level"] = df_scoring["fraud_weight"].apply(risk_level)
+    # 5️⃣ Compute cluster-level fraud weight
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
 
-    # 6️⃣ Display scoring table
+    # 6️⃣ Assign risk levels based on fraud_score
+    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
+
+    # 7️⃣ Generate descriptive cluster names
+    cluster_labels = {}
+    for cid, group in filtered_scoring.groupby("cluster_id"):
+        # Get top 2 fraud types by total count in the cluster
+        totals = aggregate_fraud_type_counts(group)
+        top_types = sorted(totals.items(), key=lambda x: -x[1])
+        top_desc = [t[0] for t in top_types[:2]] if top_types else ["Other"]
+        cluster_labels[cid] = ", ".join(top_desc)
+
+    filtered_scoring["cluster_label"] = filtered_scoring["cluster_id"].map(cluster_labels)
+
+    # 8️⃣ Display table
     st.dataframe(
-        df_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 7️⃣ Cluster distribution chart
-    st.subheader("Cluster Distribution (Automatic K-Means)")
-    cluster_counts = df_scoring.groupby("cluster_label").size().reset_index(name="count")
+    # 9️⃣ Show cluster distribution
+    st.subheader("Cluster Distribution")
+    cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
 
 with tab2:
