@@ -286,78 +286,49 @@ with tab1:
     # Quarter note
     if selection_mode=="Quarter": st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
 
-   # -----------------------------
-    # Fraud scoring, manual clustering & risk levels
-    # -----------------------------
+   # Fraud scoring & clustering
     st.markdown("---")
     st.subheader("Fraud Scoring, Clustering & Risk Levels")
-
-    # Copy filtered data for scoring
     filtered_scoring = filtered.copy()
 
-    # 1️⃣ Compute fraud scores and weights
-    filtered_scoring["cluster"] = filtered_scoring["cluster_label"]
-    filtered_scoring = compute_fraud_weight(filtered_scoring)
+    # Compute clusters with higher n_clusters, PCA reduction, and semantic labeling
+    if not filtered_scoring.empty and "embedding" in filtered_scoring.columns:
+        embeddings = filtered_scoring["embedding"].apply(fix_embedding).dropna().tolist()
+        if embeddings:
+            embeddings = np.array(embeddings, dtype=np.float32)
+            n_clusters = min(8, len(embeddings))
+            if len(embeddings) >= n_clusters:
+                from sklearn.decomposition import PCA
+                pca = PCA(n_components=min(50, embeddings.shape[1]), random_state=42)
+                embeddings_reduced = pca.fit_transform(embeddings)
+            else:
+                embeddings_reduced = embeddings
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            filtered_scoring = filtered_scoring.iloc[:embeddings_reduced.shape[0]].copy()
+            filtered_scoring["cluster"] = kmeans.fit_predict(embeddings_reduced)
+        else:
+            filtered_scoring["cluster"] = 0
+    else:
+        filtered_scoring["cluster"] = 0
 
-    # 2️⃣ Assign risk levels based on fraud_score
+    # Compute fraud score and weight
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
     filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
 
-    # 3️⃣ Define manual clusters
-    FRAUD_CLUSTERS = {
-        "Financial Fraud": [
-            "Advanced Fee Fraud",
-            "Credit Card/Check Fraud",
-            "Non-Payment/Non-Delivery Fraud",
-            "Overpayment",
-            "Investment Fraud",
-            "Business Email Compromise"
-        ],
-        "Cyber Attacks": [
-            "Malware",
-            "Ransomware",
-            "Botnet",
-            "Phishing/Spoofing",
-            "SIM Swap",
-            "Tech Support Fraud"
-        ],
-        "Data & Privacy Breaches": [
-            "Data Breach",
-            "Personal Data Breach",
-            "Identity Theft",
-            "Intellectual Property Rights"
-        ],
-        "Violence & Extortion": [
-            "Extortion",
-            "Threats of Violence",
-            "Harassment/Stalking",
-            "Government Impersonation"
-        ],
-        "Personal & Romance Fraud": [
-            "Confidence/Romance Fraud",
-            "Lottery/Sweepstakes/Inheritance Fraud",
-            "Employment Fraud",
-            "Real Estate Fraud",
-            "Crimes Against Children"
-        ]
-    }
+    # Semantic cluster labeling based on top keywords per cluster
+    cluster_labels = {}
+    for cluster_id, group in filtered_scoring.groupby("cluster"):
+        top_kw = [k for k, v in sorted(aggregate_keyword_counts(group).items(), key=lambda x: -x[1])[:3]]
+        cluster_labels[cluster_id] = ", ".join(top_kw) if top_kw else f"Cluster {cluster_id}"
+    filtered_scoring["cluster_label"] = filtered_scoring["cluster"].map(cluster_labels)
 
-    # 4️⃣ Assign cluster label for each row based on fraud types present
-    def assign_manual_cluster(row):
-        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
-        for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
-            if any(ft in cluster_types for ft in types_in_row):
-                return cluster_name
-        return "Other"
-
-    filtered_scoring["cluster_label"] = filtered_scoring.apply(assign_manual_cluster, axis=1)
-
-    # 5️⃣ Display detailed table
+    # Display table
     st.dataframe(
-        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        filtered_scoring[["title","fraud_score","fraud_weight","risk_level","cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 6️⃣ Show cluster distribution
+    # Cluster distribution chart
     st.subheader("Cluster Distribution")
     cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
