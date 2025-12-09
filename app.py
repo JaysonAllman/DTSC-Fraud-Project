@@ -248,7 +248,25 @@ with tab1:
     if ts_df.empty: st.info("Not enough data for trend chart.")
     else:
         melted=ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
-        melted["period_dt"]=pd.to_datetime(melted["period"].str.replace("-Q","-"))  # crude approximation
+        
+        # Convert period like "Q3 2020" to datetime for proper charting
+        def convert_period_to_date(period):
+            if period.startswith("Q"):
+                try:
+                    q, year = period.split()
+                    q = int(q.replace("Q",""))
+                    year = int(year)
+                    month = {1:3, 2:6, 3:9, 4:12}[q]
+                    return pd.Timestamp(year=year, month=month, day=1)
+                except:
+                    return pd.NaT
+            try:
+                return pd.to_datetime(period)
+            except:
+                return pd.NaT
+
+        melted["period_dt"] = melted["period"].apply(convert_period_to_date)
+
         chart=alt.Chart(melted).mark_line(point=True).encode(
             x=alt.X("period_dt:T", title="Period"),
             y=alt.Y("count:Q", title="Count"),
