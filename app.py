@@ -248,9 +248,9 @@ with tab1:
     if ts_df.empty: 
         st.info("Not enough data for trend chart.")
     else:
-        # ⚠️ Show warning above the chart
-        if selection_mode=="Quarter": 
-            st.info("⚠️ Trend resolution should be set to 'quarter' when viewing a quarterly period.")
+        # ⚠️ Show warning above the chart only if resolution is not month
+        if selection_mode == "Quarter" and agg_resolution != "month": 
+            st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
 
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
         
