@@ -334,11 +334,14 @@ with tab1:
         ]
     }
 
-    # 2️⃣ Assign manual cluster label for each row
+       # 2️⃣ Assign manual cluster label for each row
     def assign_manual_cluster(row):
-        types_in_row = row.get("fraud_type_counts_parsed", {}).keys()
+        types_in_row = row.get("fraud_type_counts_parsed", {}) or {}
+        types_in_row_normalized = [str(ft).strip().lower() for ft in types_in_row.keys()]
+    
         for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
-            if any(ft in cluster_types for ft in types_in_row):
+            cluster_types_normalized = [ct.strip().lower() for ct in cluster_types]
+            if any(ft in cluster_types_normalized for ft in types_in_row_normalized):
                 return cluster_name
         return "Other"
 
