@@ -355,49 +355,41 @@ with tab1:
     cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
 
-# -----------------------------
-# Helper function for second-page snippet
-# -----------------------------
-def snippet_from_second_page(full_text: str, char_limit: int = 500) -> str:
-    if not full_text:
-        return "No content available."
-    
-    # Split by page break character if exists
-    pages = full_text.split("\f")  # \f is common page delimiter in extracted PDFs
-    if len(pages) > 1:
-        second_page_text = pages[1].strip()
-    else:
-        # fallback: skip first ~1000 characters
-        second_page_text = full_text[1000:].strip() if len(full_text) > 1000 else full_text
-
-    # Truncate for snippet
-    snippet = second_page_text[:char_limit] + ("..." if len(second_page_text) > char_limit else "")
-    return snippet
-
-# -----------------------------
-# Semantic Search Tab
-# -----------------------------
 with tab2:
     st.subheader("Semantic Search")
     query = st.text_input("Enter search query:")
     top_k = st.slider("Top results to show", 1, 10, 5)
-    
+
+    def semantic_risk_level(row, kw_weight=1.0, ft_weight=1.5):
+        """Compute risk dynamically based on fraud_score and similarity to query."""
+        # Original fraud score
+        fraud_score = compute_fraud_score(row, kw_weight, ft_weight)
+        # Adjust by similarity (0-1)
+        adjusted_score = fraud_score * (1 + row.get("similarity", 0))
+        # Map to risk levels
+        if adjusted_score < 30:
+            return "Low"
+        elif adjusted_score <= 100:
+            return "Medium"
+        else:
+            return "High"
+
     if query:
         search_results = semantic_search(pdf_df, query, top_k=top_k)
         
-        for _, row in search_results.iterrows():
-            # Use snippet from second page
-            snippet = snippet_from_second_page(row.get("text", ""))
-            
-            weight = row.get("fraud_weight", 0)
-            sim_score = row.get("similarity", 0)
-            
-            st.markdown(
-                f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk_level(weight)}"
-            )
-            st.write(snippet)
-            st.markdown(f"[View Article]({row.get('url','')})")
-            st.markdown("---")
+        if search_results.empty:
+            st.info("No results found.")
+        else:
+            for _, row in search_results.iterrows():
+                # Use the generated summary instead of raw text snippet
+                summary = row.get("summary", "No summary available.")
+                risk = semantic_risk_level(row)
+                sim_score = row.get("similarity", 0)
+                
+                st.markdown(f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk}")
+                st.write(summary)
+                st.markdown(f"[View Article]({row.get('url','')})")  # optional link
+                st.markdown("---")
 
 # Footer / tips
 st.markdown("""
