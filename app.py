@@ -246,72 +246,47 @@ tab1,tab2=st.tabs(["Dashboard","Semantic Search"])
 # -----------------------------
 # SIDEBAR — Fraud Type Filter
 # -----------------------------
-# Build full fraud-type list from fraud_totals
+# Build full fraud-type list from the current filtered data
 all_fraud_types = sorted(list(fraud_totals.keys()))
 
+# Explicit "All" option
 fraud_type_options = ["All"] + all_fraud_types
 
 fraud_type_filter = st.sidebar.multiselect(
     "Filter Fraud Types",
     options=fraud_type_options,
-    default=["All"],
-    help="Choose fraud types to show on the chart and tables."
+    default=["All"],  # Default selection
+    help="Choose fraud types to show on the chart and aggregate table. 'All' shows every type."
 )
 
-# Determine selected fraud types
+# Determine effective list of fraud types to show
 if not fraud_type_filter or "All" in fraud_type_filter:
     selected_fraud_types = all_fraud_types.copy()
 else:
     selected_fraud_types = [f for f in fraud_type_filter if f != "All"]
 
-
-# ------------------------------------------
-# REBUILD ts_df AFTER applying the filter
-# ------------------------------------------
-# Filter the main dataset BEFORE building the time series
-filtered_for_ts = filtered[filtered["fraud_type"].isin(selected_fraud_types)]
-
-# Safeguard: if filtering removes everything, fall back to full data
-if filtered_for_ts.empty:
-    filtered_for_ts = filtered.copy()
-    selected_fraud_types = all_fraud_types.copy()
-
-# Build timeseries table fresh based on user-selected fraud types
-ts_df = (
-    filtered_for_ts
-    .groupby(["period", "fraud_type"])["count"]
-    .sum()
-    .reset_index()
-    .pivot(index="period", columns="fraud_type", values="count")
-    .fillna(0)
-    .reset_index()
-)
-
-
 # -----------------------------
-# TAB 1 — Trends
+# TAB 1 — Trends (apply filter)
 # -----------------------------
 with tab1:
     st.subheader("Fraud type trends")
-
     if ts_df.empty:
         st.info("Not enough data for trend chart.")
     else:
-        # Warnings
+        # ⚠️ Show warning for quarterly selection
         if selection_mode == "Quarter" and agg_resolution != "month":
             st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
 
+        # ⚠️ Show warning for yearly selection
         if selection_mode == "Year" and agg_resolution == "year":
             st.info("⚠️ Trend resolution should be set to 'quarter' or 'month' when viewing a yearly period.")
 
-        # Melt for Altair
-        melted = ts_df.melt(
-            id_vars=["period"],
-            var_name="fraud_type",
-            value_name="count"
-        )
+        melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
 
-        # Convert period to actual date for plotting
+        # Keep only selected fraud types
+        melted = melted[melted["fraud_type"].isin(selected_fraud_types)]
+
+        # Map quarter to month for plotting
         def quarter_to_month(period_str):
             if "-Q" in period_str:
                 year, q = period_str.split("-Q")
@@ -324,7 +299,7 @@ with tab1:
                     return pd.to_datetime(period_str)
                 except:
                     return pd.NaT
-        
+
         melted["period_dt"] = melted["period"].apply(quarter_to_month)
 
         chart = alt.Chart(melted).mark_line(point=True).encode(
@@ -336,28 +311,80 @@ with tab1:
 
         st.altair_chart(chart, use_container_width=True)
 
-    # -----------------------------
-    # Aggregate counts + top keywords
-    # -----------------------------
+    # Show aggregate counts under chart (apply same filter)
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("**Aggregate Fraud Counts for Selected Period**")
-
         df_fraud = pd.DataFrame(
             sorted(fraud_totals.items(), key=lambda x: -x[1]),
             columns=["Fraud Type", "Count"]
         )
-
-        # Apply filter
+        # Apply sidebar filter
         df_fraud = df_fraud[df_fraud["Fraud Type"].isin(selected_fraud_types)]
-
         st.dataframe(df_fraud, height=400)
 
     with col2:
         st.markdown(f"**Top {topk} Keywords**")
         for kw, cnt in get_top_keywords(keyword_totals, topk):
             st.write(f"**{kw}** — {cnt:,}")
+
+    # AI Narrative
+    st.markdown("---")
+    st.subheader("AI Narrative for Time Period")
+    llm_text=get_llm_report_for_period(reports_df, "All" if selection_mode=="All" else selection_mode, selection_value)
+    if not llm_text: st.info("No LLM narrative found.")
+    else: st.write(llm_text)
+
+    # -----------------------------
+    # Fraud scoring, clustering & risk levels
+    # -----------------------------
+    st.markdown("---")
+    st.subheader("Fraud Scoring, Clustering & Risk Levels")
+
+    # Copy filtered data for scoring
+    filtered_scoring = filtered.copy()
+
+    # 1️⃣ Compute clusters
+    filtered_scoring = compute_clusters(filtered_scoring, n_clusters=5)
+
+    # 2️⃣ Compute fraud scores and weights
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
+
+    # 3️⃣ Assign risk levels based on fraud_score
+    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
+
+    # 4️⃣ Name clusters based on top fraud types
+    def name_clusters(df):
+        cluster_names = {}
+        for c in df["cluster"].unique():
+            subset = df[df["cluster"] == c]
+
+            # Aggregate fraud type counts
+            fraud_totals = aggregate_fraud_type_counts(subset)
+
+            # Pick ONLY the single top fraud type
+            if fraud_totals:
+                top_fraud = max(fraud_totals.items(), key=lambda x: x[1])[0]
+                cluster_names[c] = top_fraud
+            else:
+                cluster_names[c] = f"Cluster {c}"
+
+        return cluster_names
+
+    cluster_labels = name_clusters(filtered_scoring)
+    filtered_scoring["cluster_label"] = filtered_scoring["cluster"].map(cluster_labels)
+
+    # 5️⃣ Display detailed table
+    st.dataframe(
+        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        .sort_values("fraud_weight", ascending=False)
+)
+
+    # 6️⃣ Show cluster distribution
+    st.subheader("Cluster Distribution")
+    cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
+    st.bar_chart(cluster_counts.set_index("cluster_label"))
 
 with tab2:
     st.subheader("Semantic Search")
