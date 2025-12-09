@@ -1,6 +1,7 @@
-# streamlit_dashboard.py
+# app.py
 import os
 import json
+import ast
 from typing import Dict, List, Tuple, Any
 import pandas as pd
 import numpy as np
@@ -9,380 +10,410 @@ import altair as alt
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics.pairwise import cosine_similarity
+from openai import OpenAI
 
+# -----------------------------
+# Load environment variables
+# -----------------------------
 load_dotenv()
-
-# ---------------------------
-# Configuration
-# ---------------------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not OPENAI_API_KEY:
+    st.error("❌ OPENAI_API_KEY not found.")
+    st.stop()
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Missing SUPABASE_URL or SUPABASE_KEY in environment. Put them in your .env file.")
+    st.error("❌ SUPABASE_URL or SUPABASE_KEY missing.")
     st.stop()
 
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ---------------------------
-# Helpers
-# ---------------------------
+# -----------------------------
+# Helper Functions
+# -----------------------------
 def parse_json_field(field: Any) -> Dict:
-    """Supabase may return a dict already or a JSON string; normalize to dict."""
-    if field is None:
-        return {}
-    if isinstance(field, dict):
-        return field
+    if field is None: return {}
+    if isinstance(field, dict): return field
     if isinstance(field, str):
-        try:
-            return json.loads(field)
-        except Exception:
-            # try single quotes fallback
-            try:
-                return json.loads(field.replace("'", '"'))
-            except Exception:
-                return {}
+        try: return json.loads(field)
+        except: 
+            try: return json.loads(field.replace("'", '"'))
+            except: return {}
     return {}
 
 def fetch_pdf_summaries() -> pd.DataFrame:
-    """Fetch all rows from pdf_summaries table and convert to DataFrame."""
     res = supabase.table("pdf_summaries").select("*").execute()
-
-    if res.data is None:
-        st.error(f"Error fetching pdf_summaries. Status code: {res.status_code}")
-        return pd.DataFrame()
-
+    if not res.data: return pd.DataFrame()
     df = pd.DataFrame(res.data)
-    if df.empty:
-        return df
-
-    # Parse date
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date"])
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["quarter"] = df["date"].dt.quarter
-
-    # Normalize JSON fields
     df["fraud_type_counts_parsed"] = df["fraud_type_counts"].apply(parse_json_field)
     df["keyword_counts_parsed"] = df["keyword_counts"].apply(parse_json_field)
-
     return df
 
 def fetch_fraud_reports() -> pd.DataFrame:
-    """Fetch LLM reports (fraud_reports table)."""
     res = supabase.table("fraud_reports").select("*").execute()
-
-    if res.data is None:
-        st.error(f"Error fetching fraud_reports. Status code: {res.status_code}")
-        return pd.DataFrame()
-
+    if not res.data: return pd.DataFrame()
     df = pd.DataFrame(res.data)
-    if df.empty:
-        return df
-
     df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
     return df
 
-def flatten_keyword_counts(keyword_json: Dict) -> Dict[str, int]:
-    """
-    keyword_json is expected like:
-    { "Malware": {"malware":5, "trojan":1}, "Phishing/Spoofing": {"phishing":2} }
-    return combined totals across all fraud groups: {"malware":5, "trojan":1, "phishing":2}
-    """
+def flatten_keyword_counts(keyword_json: Dict) -> Dict[str,int]:
     totals = {}
-    for fraud_group, inner in (keyword_json or {}).items():
-        if not isinstance(inner, dict):
-            # If stored as integer or non-dict, ignore or try to coerce
-            continue
+    for fg, inner in (keyword_json or {}).items():
+        if not isinstance(inner, dict): continue
         for term, cnt in inner.items():
-            try:
-                c = int(cnt)
-            except Exception:
-                c = 0
+            try: c = int(cnt)
+            except: c = 0
             totals[term] = totals.get(term, 0) + c
     return totals
 
-def aggregate_fraud_type_counts(rows: pd.DataFrame) -> Dict[str, int]:
+def aggregate_fraud_type_counts(rows: pd.DataFrame) -> Dict[str,int]:
     totals = {}
     for d in rows["fraud_type_counts_parsed"]:
-        for k, v in (d or {}).items():
-            try:
-                c = int(v)
-            except Exception:
-                c = 0
-            totals[k] = totals.get(k, 0) + c
+        for k,v in (d or {}).items():
+            try: c = int(v)
+            except: c=0
+            totals[k] = totals.get(k,0)+c
     return totals
 
-def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str, int]:
+def aggregate_keyword_counts(rows: pd.DataFrame) -> Dict[str,int]:
     totals = {}
     for d in rows["keyword_counts_parsed"]:
         flattened = flatten_keyword_counts(d)
         for term, count in flattened.items():
-            totals[term] = totals.get(term, 0) + int(count)
+            totals[term] = totals.get(term,0)+int(count)
     return totals
 
 def timeframe_filter(df: pd.DataFrame, selection_mode: str, selection_value: Any) -> pd.DataFrame:
-    """
-    selection_mode: one of "All", "Year", "Quarter", "MonthRange"
-    selection_value:
-      - "All": ignored
-      - "Year": int year
-      - "Quarter": tuple (year, quarter) e.g. (2020, 3)
-      - "MonthRange": tuple (start_date, end_date) as datetime
-    """
-    if selection_mode == "All":
-        return df.copy()
-    if selection_mode == "Year":
-        year = selection_value
-        return df[df["year"] == int(year)].copy()
-    if selection_mode == "Quarter":
-        year, q = selection_value
-        return df[(df["year"] == int(year)) & (df["quarter"] == int(q))].copy()
-    if selection_mode == "MonthRange":
-        start, end = selection_value
-        return df[(df["date"] >= start) & (df["date"] <= end)].copy()
+    if selection_mode=="All": return df.copy()
+    if selection_mode=="Year": return df[df["year"]==int(selection_value)].copy()
+    if selection_mode=="Quarter":
+        y,q = selection_value
+        return df[(df["year"]==int(y)) & (df["quarter"]==int(q))].copy()
+    if selection_mode=="MonthRange":
+        start,end = selection_value
+        return df[(df["date"]>=start) & (df["date"]<=end)].copy()
     return df.copy()
 
 def timeseries_by_period(df: pd.DataFrame, agg: str="quarter", top_n:int=5) -> pd.DataFrame:
-    """
-    Build a timeseries DataFrame of counts grouped by period resolution (month, quarter, year)
-    We will sum fraud_type_counts across rows for each period and return DataFrame with
-    columns: period_label, fraud_type1, fraud_type2, ...
-    """
-    rows = []
-    # expand per-row fraud_type_counts to per-row dict
-    for _, r in df.iterrows():
-        dt = r["date"]
-        if agg == "month":
-            label = dt.strftime("%Y-%m")
-        elif agg == "quarter":
-            label = f"{dt.year}-Q{r['quarter']}"
-        else:
-            label = str(dt.year)
-        totals = {}
-        for k, v in (r["fraud_type_counts_parsed"] or {}).items():
-            try:
-                c = int(v)
-            except Exception:
-                c = 0
-            totals[k] = totals.get(k, 0) + c
-        rows.append({"period": label, **totals})
-
-    if not rows:
-        return pd.DataFrame()
-
-    ts_df = pd.DataFrame(rows).fillna(0)
-    # group by period label and sum
-    grouped = ts_df.groupby("period").sum().reset_index()
-    # Find global top fraud types (top_n) across the whole period
-    if grouped.shape[0] == 0:
-        return grouped
-    totals_all = grouped.drop(columns=["period"]).sum().sort_values(ascending=False)
-    top_types = list(totals_all.head(top_n).index)
-    # restrict grouped to period + top types
-    cols = ["period"] + top_types
-    result = grouped[cols].sort_values("period")
-    # ensure numeric
-    for c in top_types:
-        result[c] = result[c].astype(int)
+    rows=[]
+    for _,r in df.iterrows():
+        dt=r["date"]
+        if agg=="month": label=dt.strftime("%Y-%m")
+        elif agg=="quarter": label=f"{dt.year}-Q{r['quarter']}"
+        else: label=str(dt.year)
+        totals={}
+        for k,v in (r["fraud_type_counts_parsed"] or {}).items():
+            try: c=int(v)
+            except: c=0
+            totals[k]=totals.get(k,0)+c
+        rows.append({"period":label, **totals})
+    if not rows: return pd.DataFrame()
+    ts_df=pd.DataFrame(rows).fillna(0)
+    grouped=ts_df.groupby("period").sum().reset_index()
+    totals_all=grouped.drop(columns=["period"]).sum().sort_values(ascending=False)
+    top_types=list(totals_all.head(top_n).index)
+    cols=["period"]+top_types
+    result=grouped[cols].sort_values("period")
+    for c in top_types: result[c]=result[c].astype(int)
     return result
 
-def get_top_keywords(keyword_totals: Dict[str,int], top_n: int = 5) -> List[Tuple[str,int]]:
-    items = sorted(keyword_totals.items(), key=lambda x: x[1], reverse=True)
+def get_top_keywords(keyword_totals: Dict[str,int], top_n:int=5) -> List[Tuple[str,int]]:
+    items=sorted(keyword_totals.items(), key=lambda x: x[1], reverse=True)
     return items[:top_n]
 
 def get_llm_report_for_period(reports_df: pd.DataFrame, selection_mode: str, selection_value: Any) -> str:
-    """Find best matching LLM report by period label. Returns text or empty string."""
-    if reports_df.empty:
-        return ""
-    # Normalize different ways user might request period labels
-    if selection_mode == "All":
-        label = "Overall 2020–2025"
-    elif selection_mode == "Year":
-        label = str(selection_value)
-    elif selection_mode == "Quarter":
-        year, q = selection_value
-        label = f"Q{q} {year}"
-    elif selection_mode == "MonthRange":
-        start, end = selection_value
-        # try to find a monthly named report if one exists
-        # prefer "Month Year" format for single-month ranges
-        if start.year == end.year and start.month == end.month:
-            label = start.strftime("%B %Y")
-        else:
-            # fallback: use "start - end"
-            label = f"{start.strftime('%b %Y')} - {end.strftime('%b %Y')}"
-    else:
-        label = ""
-
-    # Attempt to match the 'period' column exactly
-    matches = reports_df[reports_df["period"].astype(str).str.strip().str.lower() == label.strip().lower()]
-    if not matches.empty:
-        return matches.iloc[0]["summary"]
-
-    # fallback: partial match
+    if reports_df.empty: return ""
+    if selection_mode=="All": label="Overall 2020–2025"
+    elif selection_mode=="Year": label=str(selection_value)
+    elif selection_mode=="Quarter": y,q=selection_value; label=f"Q{q} {y}"
+    elif selection_mode=="MonthRange": start,end=selection_value; label=f"{start.strftime('%b %Y')} - {end.strftime('%b %Y')}" if start!=end else start.strftime("%B %Y")
+    else: label=""
+    matches = reports_df[reports_df["period"].astype(str).str.strip().str.lower()==label.strip().lower()]
+    if not matches.empty: return matches.iloc[0]["summary"]
     matches = reports_df[reports_df["period"].astype(str).str.lower().str.contains(label.strip().lower(), na=False)]
-    if not matches.empty:
-        return matches.iloc[0]["summary"]
-
-    # If still not found, try to return the closest year-level report (for month/quarter)
-    if selection_mode in ("Quarter", "MonthRange"):
-        yr = selection_value[0] if selection_mode=="Quarter" else selection_value[0].year
-        matches = reports_df[reports_df["period"].astype(str).str.strip() == str(yr)]
-        if not matches.empty:
-            return matches.iloc[0]["summary"]
-
+    if not matches.empty: return matches.iloc[0]["summary"]
     return ""
 
-# ---------------------------
-# UI
-# ---------------------------
+def compute_fraud_score(row, kw_weight=1.0, ft_weight=1.5):
+    kw_count=sum(flatten_keyword_counts(row["keyword_counts_parsed"]).values())
+    ft_count=sum(row["fraud_type_counts_parsed"].values() if row["fraud_type_counts_parsed"] else [])
+    return kw_weight*kw_count + ft_weight*ft_count
+
+def compute_clusters(df, n_clusters=5):
+    if df.empty or "embedding" not in df.columns: return df
+    df=df[df["embedding"].notna()].copy()
+    cleaned=[]
+    for e in df["embedding"]:
+        try:
+            if isinstance(e,str): e=json.loads(e)
+            if not isinstance(e,(list,tuple)): cleaned.append(None); continue
+            cleaned.append([float(x) for x in e])
+        except: cleaned.append(None)
+    df["embedding_clean"]=cleaned
+    df=df[df["embedding_clean"].notna()].copy()
+    if df.empty: st.warning("All embeddings invalid"); return df
+    embeddings=np.array(df["embedding_clean"].tolist(), dtype=np.float32)
+    if embeddings.ndim !=2: st.error(f"❌ Embeddings must be 2D"); return df
+    if len(embeddings)<n_clusters: n_clusters=max(1,len(embeddings))
+    try:
+        kmeans=KMeans(n_clusters=n_clusters, random_state=42)
+        df["cluster"]=kmeans.fit_predict(embeddings)
+    except Exception as e:
+        st.error(f"❌ KMeans failed: {e}"); return df
+    return df
+
+def compute_fraud_weight(df):
+    if "fraud_score" not in df.columns: df["fraud_score"]=df.apply(compute_fraud_score, axis=1)
+    cluster_avg=df.groupby("cluster")["fraud_score"].transform("mean")
+    df["fraud_weight_raw"]=df["fraud_score"]*cluster_avg
+    scaler=MinMaxScaler()
+    df["fraud_weight"]=scaler.fit_transform(df[["fraud_weight_raw"]])
+    return df
+
+def risk_level(score):
+    if score<30: return "Low"
+    elif score<=100: return "Medium"
+    return "High"
+
+def fix_embedding(e):
+    if isinstance(e,list): return e
+    if isinstance(e,str):
+        try: return ast.literal_eval(e)
+        except: return None
+    return None
+
+def semantic_search(df, query, top_k=5):
+    if df.empty: return df
+    query_emb=openai_client.embeddings.create(model="text-embedding-3-small", input=query).data[0].embedding
+    df["embedding"]=df["embedding"].apply(fix_embedding)
+    df=df[df["embedding"].notnull()]
+    df["similarity"]=df["embedding"].apply(lambda e: cosine_similarity([query_emb],[e])[0][0])
+    return df.sort_values("similarity", ascending=False).head(top_k)
+
+# -----------------------------
+# Streamlit UI
+# -----------------------------
 st.set_page_config(page_title="Fraud Trends Dashboard", layout="wide")
 st.title("Fraud Trends Dashboard")
 
-# Load data once (caching)
 @st.cache_data(ttl=300)
 def load_data():
-    pdf_df = fetch_pdf_summaries()
-    reports_df = fetch_fraud_reports()
-    return pdf_df, reports_df
+    return fetch_pdf_summaries(), fetch_fraud_reports()
 
 pdf_df, reports_df = load_data()
-if pdf_df is None or pdf_df.empty:
-    st.warning("No pdf_summaries rows found in Supabase.")
-    st.stop()
+if pdf_df.empty: st.warning("No pdf_summaries rows found."); st.stop()
 
-# Sidebar controls
+# Sidebar filters
 st.sidebar.header("Filters & Controls")
-years = sorted(pdf_df["year"].unique().tolist())
-min_year, max_year = min(years), max(years)
-selection_mode = st.sidebar.selectbox("Select time window type", ["All", "Year", "Quarter", "Custom Range (months)"])
+years=sorted(pdf_df["year"].unique().tolist())
+min_year,max_year=min(years),max(years)
+selection_mode=st.sidebar.selectbox("Select time window type", ["All","Year","Quarter"])
+selection_value=None
+if selection_mode=="Year":
+    sel_year=st.sidebar.selectbox("Year", years, index=len(years)-1)
+    selection_value=int(sel_year)
+elif selection_mode=="Quarter":
+    sel_year=st.sidebar.selectbox("Year", years, index=len(years)-1)
+    sel_q=st.sidebar.selectbox("Quarter", [1,2,3,4], index=3)
+    selection_value=(int(sel_year), int(sel_q))
+elif selection_mode=="Custom Range (months)":
+    start=st.sidebar.date_input("Start date", datetime(min_year,1,1).date())
+    end=st.sidebar.date_input("End date", datetime(max_year,12,31).date())
+    if start>end: st.sidebar.error("Start date must be <= end date")
+    selection_value=(pd.to_datetime(start), pd.to_datetime(end))
 
-selection_value = None
-if selection_mode == "Year":
-    sel_year = st.sidebar.selectbox("Year", years, index=len(years)-1)
-    selection_value = int(sel_year)
-elif selection_mode == "Quarter":
-    sel_year = st.sidebar.selectbox("Year", years, index=len(years)-1)
-    sel_q = st.sidebar.selectbox("Quarter", [1,2,3,4], index=3)
-    selection_value = (int(sel_year), int(sel_q))
-elif selection_mode == "Custom Range (months)":
-    start = st.sidebar.date_input("Start date", value=datetime(min_year,1,1).date())
-    end = st.sidebar.date_input("End date", value=datetime(max_year,12,31).date())
-    if start > end:
-        st.sidebar.error("Start date must be <= end date")
-    selection_value = (pd.to_datetime(start), pd.to_datetime(end))
-else:
-    selection_value = None
+agg_resolution=st.sidebar.selectbox("Trend resolution (for line chart)", ["year","quarter","month"], index=1)
+topn=st.sidebar.slider("Top N fraud types", 1, 8, 5)
+topk=st.sidebar.slider("Top N keywords", 1, 10, 5)
 
-agg_resolution = st.sidebar.selectbox("Trend resolution (for line chart)", ["year", "quarter", "month"], index=1)
-topn = st.sidebar.slider("Top N fraud types to show", 1, 8, 5)
-topk = st.sidebar.slider("Top N keywords to list", 1, 10, 5)
-
-# Filter pdf rows by user selection
 filtered = timeframe_filter(pdf_df, selection_mode if selection_mode!="All" else "All", selection_value)
+fraud_totals=aggregate_fraud_type_counts(filtered)
+keyword_totals=aggregate_keyword_counts(filtered)
+ts_df=timeseries_by_period(filtered, agg=agg_resolution, top_n=topn)
 
-st.sidebar.markdown(f"**PDF rows in selection:** {len(filtered)}")
+tab1,tab2=st.tabs(["Dashboard","Semantic Search"])
 
-# Aggregate
-fraud_totals = aggregate_fraud_type_counts(filtered)
-keyword_totals = aggregate_keyword_counts(filtered)
-
-# Timeseries
-ts_df = timeseries_by_period(filtered, agg=agg_resolution, top_n=topn)
-
-# Layout: top-left chart, top-right top5 keywords, bottom LLM report
-col1, col2 = st.columns([3,1])
-
-with col1:
+with tab1:
     st.subheader("Fraud type trends")
-    if ts_df.empty:
-        st.info("Not enough data to build a trend for this selection.")
+    if ts_df.empty: 
+        st.info("Not enough data for trend chart.")
     else:
-        # melt for altair
+        # ⚠️ Show warning for quarterly selection
+        if selection_mode == "Quarter" and agg_resolution != "month": 
+            st.info("⚠️ Trend resolution should be set to 'month' when viewing a quarterly period.")
+        
+        # ⚠️ Show warning for yearly selection
+        if selection_mode == "Year" and agg_resolution == "year": 
+            st.info("⚠️ Trend resolution should be set to 'quarter' or 'month' when viewing a yearly period.")
+
         melted = ts_df.melt(id_vars=["period"], var_name="fraud_type", value_name="count")
-
-        # Convert period label to a real datetime using original filtered data
-        def period_label_to_dt(row):
-            p = row['period']
-            try:
-                # Monthly format YYYY-MM
-                if "-" in p and len(p.split("-")[1]) == 2:
-                    y, m = p.split("-")
-                    return datetime(int(y), int(m), 1)
-
-                # Quarterly format YYYY-Qn
-                if "-Q" in p:
-                    y, q = p.split("-Q")
-                    y = int(y)
-                    q = int(q)
-
-                    # Get ACTUAL dates from your filtered DF for this year+quarter
-                    match_dates = filtered[
-                        (filtered['year'] == y) &
-                        (filtered['quarter'] == q)
-                    ]['date']
-
-                    if not match_dates.empty:
-                        return match_dates.min().replace(day=1)
-                    else:
-                        return datetime(y, (q - 1) * 3 + 1, 1)
-
-                # Yearly
-                return datetime(int(p), 1, 1)
-
-            except Exception:
-                return datetime(1970, 1, 1)
-
-        # Apply corrected conversion
-        melted["period_dt"] = melted.apply(period_label_to_dt, axis=1)
-
-        # FINAL FIX — force correct YYYY-MM labels on x-axis
+        
+        # Map quarter to month for plotting
+        def quarter_to_month(period_str):
+            if "-Q" in period_str:
+                year, q = period_str.split("-Q")
+                year = int(year)
+                q = int(q)
+                # Map quarters to last month of quarter
+                month_map = {1: 3, 2: 6, 3: 9, 4: 12}
+                month = month_map[q]
+                return pd.Timestamp(year=year, month=month, day=1)
+            else:
+                # fallback for year or month strings
+                try:
+                    return pd.to_datetime(period_str)
+                except:
+                    return pd.NaT
+        
+        melted["period_dt"] = melted["period"].apply(quarter_to_month)
+        
         chart = alt.Chart(melted).mark_line(point=True).encode(
-            x=alt.X(
-                "period_dt:T",
-                title="Period",
-                axis=alt.Axis(
-                    labelExpr='timeFormat(datum.value, "%Y-%m")'   # << FIXED LABELS
-                )
-            ),
-            y=alt.Y("count:Q", title="Total mentions"),
-            color=alt.Color("fraud_type:N", title="Fraud type"),
-            tooltip=[
-                alt.Tooltip("period_dt:T", title="Period"),
-                alt.Tooltip("fraud_type:N", title="Fraud Type"),
-                alt.Tooltip("count:Q", title="Count")
-            ]
-        ).properties(width=900, height=420)
-
+            x=alt.X("period_dt:T", title="Period"),
+            y=alt.Y("count:Q", title="Count"),
+            color="fraud_type:N",
+            tooltip=["period_dt:T","fraud_type:N","count:Q"]
+        ).properties(width=900, height=400)
         st.altair_chart(chart, use_container_width=True)
 
-with col2:
-    st.subheader(f"Top {topk} Keywords")
-    top_keywords = get_top_keywords(keyword_totals, top_k:=topk)
-    if not top_keywords:
-        st.write("No keyword data available for the selected period.")
-    else:
-        for i, (kw, cnt) in enumerate(top_keywords, start=1):
-            st.write(f"**{i}. {kw}** — {cnt:,}")
+    # Show aggregate counts and top keywords under chart
+    col1, col2 = st.columns(2)
 
-# LLM report / narrative
-st.markdown("---")
-st.subheader("AI Narrative")
-llm_text = get_llm_report_for_period(reports_df, "All" if selection_mode=="All" else selection_mode, selection_value)
-if not llm_text:
-    st.info("No LLM narrative found for the selected period. You can generate one and store it in the fraud_reports table.")
-else:
-    st.write(llm_text)
+    with col1:
+        st.markdown("**Aggregate Fraud Counts for Selected Period**")
+        # Convert to DataFrame and sort descending
+        df_fraud = pd.DataFrame(
+            sorted(fraud_totals.items(), key=lambda x: -x[1]), 
+            columns=["Fraud Type", "Count"]
+        )
+        # Scrollable table with fixed height
+        st.dataframe(df_fraud, height=400)
 
-# Small summary area with totals (fraud types)
-st.markdown("---")
-st.subheader("Aggregate totals for selected period")
-if not fraud_totals:
-    st.write("No fraud type totals found for this selection.")
-else:
-    df_totals = pd.DataFrame(sorted(fraud_totals.items(), key=lambda x: x[1], reverse=True), columns=["fraud_type","total"])
-    st.dataframe(df_totals)
+    with col2:
+        st.markdown(f"**Top {topk} Keywords**")
+        # Keep as a list
+        for kw, cnt in get_top_keywords(keyword_totals, topk):
+            st.write(f"**{kw}** — {cnt:,}")
+
+    # AI Narrative
+    st.markdown("---")
+    st.subheader("AI Narrative for Time Period")
+    llm_text=get_llm_report_for_period(reports_df, "All" if selection_mode=="All" else selection_mode, selection_value)
+    if not llm_text: st.info("No LLM narrative found.")
+    else: st.write(llm_text)
+
+    # -----------------------------
+    # Fraud scoring, clustering & risk levels
+    # -----------------------------
+    st.markdown("---")
+    st.subheader("Fraud Scoring, Clustering & Risk Levels")
+
+    # Copy filtered data for scoring
+    filtered_scoring = filtered.copy()
+
+    # 1️⃣ Compute clusters
+    filtered_scoring = compute_clusters(filtered_scoring, n_clusters=5)
+
+    # 2️⃣ Compute fraud scores and weights
+    filtered_scoring = compute_fraud_weight(filtered_scoring)
+
+    # 3️⃣ Assign risk levels based on fraud_score
+    filtered_scoring["risk_level"] = filtered_scoring["fraud_score"].apply(risk_level)
+
+    # 4️⃣ Name clusters based on top fraud types
+    def name_clusters(df):
+        cluster_names = {}
+        for c in df["cluster"].unique():
+            subset = df[df["cluster"] == c]
+
+            # Aggregate fraud type counts
+            fraud_totals = aggregate_fraud_type_counts(subset)
+
+            # Pick ONLY the single top fraud type
+            if fraud_totals:
+                top_fraud = max(fraud_totals.items(), key=lambda x: x[1])[0]
+                cluster_names[c] = top_fraud
+            else:
+                cluster_names[c] = f"Cluster {c}"
+
+        return cluster_names
+
+    cluster_labels = name_clusters(filtered_scoring)
+    filtered_scoring["cluster_label"] = filtered_scoring["cluster"].map(cluster_labels)
+
+    # 5️⃣ Display detailed table
+    st.dataframe(
+        filtered_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
+        .sort_values("fraud_weight", ascending=False)
+)
+
+    # 6️⃣ Show cluster distribution
+    st.subheader("Cluster Distribution")
+    cluster_counts = filtered_scoring.groupby("cluster_label").size().reset_index(name="count")
+    st.bar_chart(cluster_counts.set_index("cluster_label"))
+
+with tab2:
+    st.subheader("Semantic Search")
+    query = st.text_input("Enter search query:")
+    top_k = st.slider("Top results to show", 1, 10, 5)
+
+    import re
+
+    def clean_summary(text: str) -> str:
+        """Remove TLP markers, bullets, boxes, and extra whitespace."""
+        if not text:
+            return ""
+        # Remove TLP markers like TLP:WHITE, TLP: CLEAR, etc.
+        text = re.sub(r'TLP:\s*[A-Z]+\s*', '', text, flags=re.IGNORECASE)
+        # Remove bullets and strange box characters
+        text = re.sub(r'[\u2022\u2023\u25E6\u2043\u2219\uF0A7\-]', '', text)
+        # Replace multiple spaces or newlines with a single space
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
+    def truncate_sentences(text: str, max_sentences: int = 4) -> str:
+        """Keep only the first max_sentences from the text."""
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        return ' '.join(sentences[:max_sentences])
+
+    def semantic_risk_level(row, kw_weight=1.0, ft_weight=1.5):
+        """Compute risk dynamically based on fraud_score and similarity to query."""
+        fraud_score = compute_fraud_score(row, kw_weight, ft_weight)
+        adjusted_score = fraud_score * (1 + row.get("similarity", 0))
+        if adjusted_score < 30:
+            return "Low"
+        elif adjusted_score <= 100:
+            return "Medium"
+        else:
+            return "High"
+
+    if query:
+        search_results = semantic_search(pdf_df, query, top_k=top_k)
+
+        if search_results.empty:
+            st.info("No results found.")
+        else:
+            for _, row in search_results.iterrows():
+                # Use generated summary, clean it, and truncate to 4 sentences
+                summary = clean_summary(row.get("summary", "No summary available."))
+                summary = truncate_sentences(summary, max_sentences=4)
+
+                risk = semantic_risk_level(row)
+                sim_score = row.get("similarity", 0)
+
+                st.markdown(f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk}")
+                st.write(summary)
+                st.markdown(f"[View Article]({row.get('url','')})")
+                st.markdown("---")
 
 # Footer / tips
 st.markdown("""
@@ -412,5 +443,5 @@ st.markdown("""
 - SIM Swap: The use of unsophisticated social engineering techniques against mobile service providers to transfer a victim’s phone service to a mobile device in the criminal’s possession.
 - Tech Support Fraud: Subject posing as technical or customer support/service.
 - Threats of Violence: An expression of an intention to inflict pain, injury, self-harm, or death not in the context of extortion. 
-Information provided by: Internet Crime Complaint Center (IC3). “Internet Crime Complaint Center(IC3) | Annual Crime Report 2024.” Www.ic3.Gov, 2024, www.ic3.gov/.
+- Information provided by: Internet Crime Complaint Center (IC3). “Internet Crime Complaint Center(IC3) | Annual Crime Report 2024.” Www.ic3.Gov, 2024, www.ic3.gov/.
 """)

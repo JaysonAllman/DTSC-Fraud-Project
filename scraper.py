@@ -10,6 +10,7 @@ import json
 from keywords import FRAUD_REGEX  
 
 PDF_FOLDER = "pdfs"  
+CSV_FILE = "pdf_summaries_supabase.csv"
 
 # -------------------------------
 # Helper functions
@@ -105,7 +106,6 @@ def find_keywords_and_sentences(text):
             continue
         for fraud_type, pattern in FRAUD_REGEX.items():
             matches = pattern.findall(sent)
-            # flatten tuples in case regex uses groups
             matches = [m if isinstance(m, str) else next(filter(None, m)) for m in matches]
             matches = [m.lower() for m in matches]
 
@@ -115,6 +115,13 @@ def find_keywords_and_sentences(text):
                     keyword_counts[fraud_type][m] = keyword_counts[fraud_type].get(m, 0) + 1
                 summary_sentences.append(sent.strip())
 
+    # ensure all fraud types exist even if empty
+    for ftype in FRAUD_REGEX.keys():
+        if ftype not in counts:
+            counts[ftype] = 0
+        if ftype not in keyword_counts:
+            keyword_counts[ftype] = {}
+
     summary_sentences = list(dict.fromkeys(summary_sentences))
     summary_text = " ".join(summary_sentences).replace("\n", " ").replace("\r", " ")
     return counts, keyword_counts, summary_text
@@ -122,8 +129,6 @@ def find_keywords_and_sentences(text):
 # -------------------------------
 # Main pipeline
 # -------------------------------
-
-CSV_FILE = "pdf_summaries_supabase.csv"
 
 urls = {
     2020: "https://www.ic3.gov/CSA/2020",
@@ -142,30 +147,43 @@ for year, page_url in urls.items():
     print(f"Found {len(pdf_entries)} PDFs for {year}")
 
     for entry in pdf_entries:
-        pdf_path = download_pdf(entry["url"], folder=f"{PDF_FOLDER}/{year}")
+        folder = os.path.join(PDF_FOLDER, str(year))
+        pdf_path = download_pdf(entry["url"], folder=folder)
         if not pdf_path:
             continue
 
-        text = extract_text(pdf_path)
-        if not text.strip():
+        full_text = extract_text(pdf_path)
+        if not full_text.strip():
             print(f"No text extracted from {pdf_path}")
             continue
 
-        fraud_counts, keyword_counts, summary = find_keywords_and_sentences(text)
+        fraud_counts, keyword_counts, summary = find_keywords_and_sentences(full_text)
         if entry["date"] is None:
             print(f"Skipping {entry['title']}: no date found")
             continue
 
+        # clean newlines for CSV
+        clean_summary = summary.replace("\n", " ").replace("\r", " ")
+        clean_text = full_text.replace("\n", " ").replace("\r", " ")
+
         row = {
             "title": entry["title"],
+            "url": entry["url"],
+            "filepath": pdf_path,
             "date": entry["date"].strftime("%Y-%m-%d"),
             "quarter": get_quarter(entry["date"]),
-            "fraud_type_counts": json.dumps(fraud_counts),   # JSONB-ready
-            "keyword_counts": json.dumps(keyword_counts),   # JSONB-ready
-            "summary": summary
+            "fraud_type_counts": json.dumps(fraud_counts),
+            "keyword_counts": json.dumps(keyword_counts),
+            "summary": clean_summary,
+            "text": clean_text  # full PDF text after summary
         }
         all_rows.append(row)
 
 df = pd.DataFrame(all_rows)
+
+# force uniform column order
+columns = ["title","url","filepath","date","quarter","fraud_type_counts","keyword_counts","summary","text"]
+df = df[columns]
+
 df.to_csv(CSV_FILE, index=False)
 print(f"\n✅ Supabase-ready CSV created: {CSV_FILE} ({len(df)} entries)")
