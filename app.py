@@ -308,10 +308,17 @@ with tab1:
         embeddings = np.array(df_cluster["embedding_clean"].tolist(), dtype=np.float32)
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
         df_cluster["cluster"] = kmeans.fit_predict(embeddings)
-        # Merge cluster labels back
-        df_scoring = df_scoring.merge(df_cluster[["title","cluster"]], on="title", how="left")
+
+        # Assign unique cluster names automatically
+        cluster_names = [f"Cluster {i}" for i in sorted(df_cluster["cluster"].unique())]
+        cluster_map = dict(zip(sorted(df_cluster["cluster"].unique()), cluster_names))
+        df_cluster["cluster_label"] = df_cluster["cluster"].map(cluster_map)
+
+        # Merge cluster labels back to main dataframe
+        df_scoring = df_scoring.merge(df_cluster[["title","cluster","cluster_label"]], on="title", how="left")
     else:
         df_scoring["cluster"] = None
+        df_scoring["cluster_label"] = None
 
     # 4️⃣ Compute cluster-level fraud weight
     df_scoring = compute_fraud_weight(df_scoring)
@@ -319,70 +326,16 @@ with tab1:
     # 5️⃣ Assign risk levels
     df_scoring["risk_level"] = df_scoring["fraud_weight"].apply(risk_level)
 
-    # 6️⃣ Assign manual cluster labels for readability
-    FRAUD_CLUSTERS = {
-        "Financial Fraud": [
-            "Advanced Fee Fraud",
-            "Credit Card/Check Fraud",
-            "Non-Payment/Non-Delivery Fraud",
-            "Overpayment",
-            "Investment Fraud",
-            "Business Email Compromise"
-        ],
-        "Cyber Attacks": [
-            "Malware",
-            "Ransomware",
-            "Botnet",
-            "Phishing/Spoofing",
-            "SIM Swap",
-            "Tech Support Fraud"
-        ],
-        "Data & Privacy Breaches": [
-            "Data Breach",
-            "Personal Data Breach",
-            "Identity Theft",
-            "Intellectual Property Rights"
-        ],
-        "Violence & Extortion": [
-            "Extortion",
-            "Threats of Violence",
-            "Harassment/Stalking",
-            "Government Impersonation"
-        ],
-        "Personal & Romance Fraud": [
-            "Confidence/Romance Fraud",
-            "Lottery/Sweepstakes/Inheritance Fraud",
-            "Employment Fraud",
-            "Real Estate Fraud",
-            "Crimes Against Children"
-        ]
-    }
-
-    def assign_manual_cluster(row):
-        types_in_row = row["fraud_type_counts_parsed"].keys() if row["fraud_type_counts_parsed"] else []
-        for cluster_name, cluster_types in FRAUD_CLUSTERS.items():
-            if any(ft in cluster_types for ft in types_in_row):
-                return cluster_name
-        return "Other"
-
-    df_scoring["cluster_label"] = df_scoring.apply(assign_manual_cluster, axis=1)
-
-    # 7️⃣ Display scoring table
+    # 6️⃣ Display scoring table
     st.dataframe(
-        df_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster", "cluster_label"]]
+        df_scoring[["title", "fraud_score", "fraud_weight", "risk_level", "cluster_label"]]
         .sort_values("fraud_weight", ascending=False)
     )
 
-    # 8️⃣ Cluster distribution chart
-    st.subheader("Cluster Distribution (Manual Labels)")
+    # 7️⃣ Cluster distribution chart
+    st.subheader("Cluster Distribution (Automatic K-Means)")
     cluster_counts = df_scoring.groupby("cluster_label").size().reset_index(name="count")
     st.bar_chart(cluster_counts.set_index("cluster_label"))
-
-    # 9️⃣ K-Means cluster distribution chart (optional)
-    if df_cluster.shape[0] > 0:
-        st.subheader("Cluster Distribution (K-Means)")
-        kmeans_counts = df_cluster.groupby("cluster").size().reset_index(name="count")
-        st.bar_chart(kmeans_counts.set_index("cluster"))
 
 with tab2:
     st.subheader("Semantic Search")
