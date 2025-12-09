@@ -374,6 +374,18 @@ with tab2:
         else:
             return "High"
 
+    def format_summary(summary: str, max_sentences: int = 4) -> str:
+        """Clean and truncate the summary to a limited number of sentences."""
+        if not summary:
+            return "No summary available."
+        # Split into sentences
+        sentences = summary.replace("\n", " ").split(". ")
+        sentences = [s.strip() for s in sentences if s.strip()]
+        # Take up to max_sentences
+        truncated = sentences[:max_sentences]
+        # Rejoin into a single string
+        return ". ".join(truncated) + ("." if truncated else "")
+
     if query:
         search_results = semantic_search(pdf_df, query, top_k=top_k)
         
@@ -381,8 +393,8 @@ with tab2:
             st.info("No results found.")
         else:
             for _, row in search_results.iterrows():
-                # Use the generated summary instead of raw text snippet
-                summary = row.get("summary", "No summary available.")
+                # Use the generated summary, formatted to 4 sentences
+                summary = format_summary(row.get("summary", "No summary available."), max_sentences=4)
                 risk = semantic_risk_level(row)
                 sim_score = row.get("similarity", 0)
                 
