@@ -258,11 +258,24 @@ with tab1:
         st.altair_chart(chart,use_container_width=True)
 
     # Show aggregate counts and top keywords under chart
-    st.subheader("Aggregate Fraud Counts for Selected Period")
-    for k,v in sorted(fraud_totals.items(), key=lambda x:-x[1]): st.write(f"**{k}**: {v:,}")
+    st.subheader("Aggregate Fraud Counts & Top Keywords")
+    col1, col2 = st.columns(2)
 
-    st.subheader(f"Top {topk} Keywords")
-    for kw,cnt in get_top_keywords(keyword_totals, topk): st.write(f"**{kw}** — {cnt:,}")
+    with col1:
+        st.markdown("**Aggregate Fraud Counts for Selected Period**")
+        # Convert to DataFrame and sort descending
+        df_fraud = pd.DataFrame(
+            sorted(fraud_totals.items(), key=lambda x: -x[1]), 
+            columns=["Fraud Type", "Count"]
+        )
+        # Scrollable table with fixed height
+        st.dataframe(df_fraud, height=400)
+
+        with col2:
+        st.markdown(f"**Top {topk} Keywords**")
+        # Keep as a list
+        for kw, cnt in get_top_keywords(keyword_totals, topk):
+            st.write(f"**{kw}** — {cnt:,}")
 
     # AI Narrative
     st.markdown("---")
