@@ -360,6 +360,25 @@ with tab2:
     query = st.text_input("Enter search query:")
     top_k = st.slider("Top results to show", 1, 10, 5)
 
+    import re
+
+    def clean_summary(text: str) -> str:
+        """Remove TLP markers, bullets, boxes, and extra whitespace."""
+        if not text:
+            return ""
+        # Remove TLP markers like TLP:WHITE, TLP: CLEAR, etc.
+        text = re.sub(r'TLP:\s*[A-Z]+\s*', '', text, flags=re.IGNORECASE)
+        # Remove bullets and strange box characters
+        text = re.sub(r'[\u2022\u2023\u25E6\u2043\u2219\uF0A7\-]', '', text)
+        # Replace multiple spaces or newlines with a single space
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
+    def truncate_sentences(text: str, max_sentences: int = 4) -> str:
+        """Keep only the first max_sentences from the text."""
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        return ' '.join(sentences[:max_sentences])
+
     def semantic_risk_level(row, kw_weight=1.0, ft_weight=1.5):
         """Compute risk dynamically based on fraud_score and similarity to query."""
         fraud_score = compute_fraud_score(row, kw_weight, ft_weight)
@@ -371,40 +390,20 @@ with tab2:
         else:
             return "High"
 
-    import re
-
-    def clean_summary(text: str) -> str:
-        """Remove TLP markers, bullets, and extra whitespace."""
-        if not text:
-            return ""
-        # Remove TLP markers like TLP:WHITE, TLP: CLEAR, etc.
-        text = re.sub(r'TLP:\s*[A-Z]+\s*', '', text, flags=re.IGNORECASE)
-        # Remove bullets like •, , -, etc.
-        text = re.sub(r'[\u2022\u2023\u25E6\u2043\u2219\-]', '', text)
-        # Replace multiple spaces or newlines with a single space
-        text = re.sub(r'\s+', ' ', text)
-        return text.strip()
-
-    def format_summary(summary: str, max_sentences: int = 4) -> str:
-        """Clean and truncate the summary to a limited number of sentences."""
-        summary = clean_summary(summary)
-        if not summary:
-            return "No summary available."
-        sentences = re.split(r'(?<=[.!?])\s+', summary)  # split by sentence endings
-        truncated = sentences[:max_sentences]
-        return " ".join(truncated)
-
     if query:
         search_results = semantic_search(pdf_df, query, top_k=top_k)
-        
+
         if search_results.empty:
             st.info("No results found.")
         else:
             for _, row in search_results.iterrows():
-                summary = format_summary(row.get("summary", ""), max_sentences=4)
+                # Use generated summary, clean it, and truncate to 4 sentences
+                summary = clean_summary(row.get("summary", "No summary available."))
+                summary = truncate_sentences(summary, max_sentences=4)
+
                 risk = semantic_risk_level(row)
                 sim_score = row.get("similarity", 0)
-                
+
                 st.markdown(f"**{row.get('title','Untitled')}** — Similarity: {sim_score:.2f} — Risk: {risk}")
                 st.write(summary)
                 st.markdown(f"[View Article]({row.get('url','')})")
