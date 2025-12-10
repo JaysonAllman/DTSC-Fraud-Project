@@ -1,4 +1,4 @@
-# Fraud Trends Dashboard
+# Fraud Trends Dashboard ![alt text](https://en.wikipedia.org/wiki/Internet_Crime_Complaint_Center#/media/File:Seal_of_the_FBI_Internet_Crime_Complaint_Center.png)
 ### **Tagline:** Interactive AI-powered insights into fraud patterns from IC3 industry reports
 
 ## Authors
