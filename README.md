@@ -51,7 +51,7 @@ graph TD
     C --> E[loader.py]
 
     D --> E[loader.py]
-    I --> E[loader.py]
+    I --> F[loader.py]
 
     E --> F[Supabase: pdf_summaries table / fraud_reports table]
     F --> G[app.py]
