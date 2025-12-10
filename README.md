@@ -91,6 +91,7 @@ graph TD
 <pre>
 DTSC-Fraud-Project/
 ├─ app.py                  # Streamlit dashboard
+├─ generate_embeddings.py  # Made embeddings for each PDF
 ├─ scraper.py              # Scrapes IC3 PDFs & webpages
 ├─ keywords.py             # Fraud keyword dictionary & regex
 ├─ llm_reports.py          # Generates LLM summaries
@@ -109,10 +110,11 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 2. Identifies keywords across reports using a dictionary.
 3. Aggregates counts by fraud type and keyword over time.
 4. Generates LLM summaries for each time period.
-5. Displays results in a Streamlit dashboard with interactive filters and visualizations.
+5. Create Embeddings for Each PDF.
+6. Displays results in a Streamlit dashboard with interactive filters, visualizations, and the Semantic Search..
 
 ## Dashboard Example
-<img width="700" alt="Dashboard Screenshot 1" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194102.png">
+<img width="700" alt="Dashboard Screenshot" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-12-09%20214228.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
 ## Example: Transforming Data
