@@ -48,6 +48,7 @@ graph TD
 
     C --> D[llm_reports.py / fraud_reports.csv]
     C --> I[generate_embeddings.py / embeddings.csv]
+    C --> E[loader.py]
 
     D --> E[loader.py]
     I --> E[loader.py]
