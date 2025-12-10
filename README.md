@@ -114,7 +114,7 @@ This project automates fraud detection analysis from IC3 reports using Python. T
 6. Displays results in a Streamlit dashboard with interactive filters, visualizations, and the Semantic Search..
 
 ## Dashboard Example
-<img width="700" alt="Dashboard Screenshot" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-12-09%20214228.png">
+<img width="700" alt="Dashboard Screenshot" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/main/images/Screenshot%202025-12-09%20214228.png">
 <img width="700" alt="Dashboard Screenshot 2" src="https://github.com/JaysonAllman/DTSC-Fraud-Project/blob/README-Test/images/Screenshot%202025-11-30%20194353.png">
 
 ## Example: Transforming Data
