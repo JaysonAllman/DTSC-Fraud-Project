@@ -27,7 +27,7 @@ We created an automated pipeline that:
 - Runs clustering + semantic search using embeddings
 - Generates AI summaries for each selected time range
 - Assigns Risk Level per document
-- **Easy and simple to use dashbpard to pull meaninful data**
+- **Easy and simple to use dashboard to pull meaninful data**
 
 ## Project Summary
 This project automates the collection, analysis, and summarization of industry reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
