@@ -47,6 +47,7 @@ graph TD
     B --> C[fraud_summaries.csv]
     C --> D[llm_reports.py / fraud_reports.csv]
     C --> E[loader.py]
+    C --> D[generate_embeddings.py]
     D --> E[loader.py]
     E --> F[Supabase: pdf_summaries table/fraud_reports table]
     F --> G[app.py]
