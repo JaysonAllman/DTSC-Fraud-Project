@@ -171,13 +171,14 @@ spearphishing  4
 
 ## Clear Findings
 
-The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities.
+The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities. Our Semantic Search allows users to answer there own questions by searching it themselces.
 
 ### Key Insights
 
 - **Most Common Fraud Types:** The dashboard highlights the top fraud types per year, quarter, or All time, such as phishing, malware, and extortion.  
 - **Keyword Trends:** Keyword aggregation allows tracking of specific fraud-related terms over time. For example, mentions of "phishing" increased from 14 in Jan–Feb 2023 to 170 in 2023 overall.  
-- **LLM Summaries:** AI-generated narratives summarize large volumes of reports, highlighting significant patterns and emerging threats in a human-readable format.  
+- **LLM Summaries:** AI-generated narratives summarize large volumes of reports, highlighting significant patterns and emerging threats in a human-readable format.
+- **Semantic Search:** Using embeddings stored in Supabase, the dashboard enables similarity-based search over PDF summaries and report narratives—allowing users to retrieve the most relevant fraud reports based on meaning, not just keywords.
 
 ### Example Visual
 **Analysis of All Time Fraud Trends**  
@@ -190,5 +191,5 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - Saves **hours of manual report reading** by summarizing key fraud trends automatically.  
 - Provides **actionable insights** to security teams and analysts.  
 - Supports **interactive filtering** by year, quarter, or All time ranges.  
-- Enables **trend visualization** for presentations, reports, or monitoring.
-
+- Enables **trend visualization** for presentations, reports, or monitoring
+- Allows **custom searchs** for independt reseach and findings.
