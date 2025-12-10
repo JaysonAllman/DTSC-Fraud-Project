@@ -72,7 +72,7 @@ graph TD
     B --> C[fraud_summaries.csv]
 
     C --> D[llm_reports.py / fraud_reports.csv]
-    C --> I[generate_embeddings.py / embeddings.csv]
+    C --> I[generate_embeddings.py]
     C --> E[loader.py]
 
     D --> E[loader.py]
