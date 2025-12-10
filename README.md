@@ -43,13 +43,16 @@ The workflow of the **DTSC Fraud Trends Project** is illustrated below. It shows
 
 ```mermaid
 graph TD
-    A[IC3 Website] -->|Scrape PDFs & HTML| B[scraper.py/keywords.py]
+    A[IC3 Website] -->|Scrape PDFs & HTML| B[scraper.py / keywords.py]
     B --> C[fraud_summaries.csv]
+
     C --> D[llm_reports.py / fraud_reports.csv]
-    C --> E[loader.py]
-    C --> D[generate_embeddings.py]
+    C --> I[generate_embeddings.py / embeddings.csv]
+
     D --> E[loader.py]
-    E --> F[Supabase: pdf_summaries table/fraud_reports table]
+    I --> E[loader.py]
+
+    E --> F[Supabase: pdf_summaries table / fraud_reports table]
     F --> G[app.py]
     G --> H[Streamlit Dashboard]
 
