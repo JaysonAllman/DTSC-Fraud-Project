@@ -25,7 +25,8 @@ We created an automated pipeline that:
 - Stores cleaned data in Supabase
 - Runs clustering + semantic search using embeddings
 - Generates AI summaries for each selected time range
-- Visualizes trends through an interactive Streamlit dashboard
+- Assigns Risk Level per document
+- **Easy and simple to use dashbpard to pull meaninful data**
 
 ## Project Summary
 This project automates the collection, analysis, and summarization of industry reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
@@ -81,6 +82,9 @@ graph TD
     G --> H[Streamlit Dashboard]
 
 ```
+## Streamlit Dashboard Link
+
+**Demo**: [https://dtsc-fraud-project-kzrjrxxgxdnc7kvanirkao.streamlit.app/](https://dtsc-ic3-project.streamlit.app/)
 
 ## Folder structure
 <pre>
@@ -187,4 +191,3 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - Supports **interactive filtering** by year, quarter, or All time ranges.  
 - Enables **trend visualization** for presentations, reports, or monitoring.
 
-[https://dtsc-fraud-project-kzrjrxxgxdnc7kvanirkao.streamlit.app/](https://dtsc-ic3-project.streamlit.app/)
