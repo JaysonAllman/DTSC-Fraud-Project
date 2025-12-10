@@ -10,3 +10,4 @@ requests
 PyMuPDF
 openai
 scikit-learn
+asyncio
