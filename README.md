@@ -171,7 +171,7 @@ spearphishing  4
 
 ## Clear Findings
 
-The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities. Our Semantic Search allows users to answer there own questions by searching it themselces.
+The **Fraud Trends Dashboard** enables organizations and analysts to **quickly identify trends, recurring fraud types, and emerging threats** over time without manually reading IC3 reports. By aggregating keyword occurrences and using AI-generated summaries, users can make data-driven decisions and detect patterns in cybercrime activities. Our Semantic Search allows users to answer there own questions by searching it theselves.
 
 ### Key Insights
 
@@ -192,4 +192,4 @@ The **Fraud Trends Dashboard** enables organizations and analysts to **quickly i
 - Provides **actionable insights** to security teams and analysts.  
 - Supports **interactive filtering** by year, quarter, or All time ranges.  
 - Enables **trend visualization** for presentations, reports, or monitoring
-- Allows **custom searchs** for independt reseach and findings.
+- Allows **custom searchs** for independent reseach and findings.
