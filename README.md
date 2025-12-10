@@ -1,5 +1,5 @@
 # Fraud Trends Dashboard
-**Tagline:** Interactive AI-powered insights into fraud patterns from IC3 industry reports
+### **Tagline:** Interactive AI-powered insights into fraud patterns from IC3 industry reports
 
 ## Authors
 - Samuel McClure, Taylor Foster, Jayson Allman and Yousef Eddin
