@@ -2,7 +2,30 @@
 **Tagline:** Interactive AI-powered insights into fraud patterns from IC3 industry reports
 
 ## Authors
-- Samuel McClure, Taylor Foster, Jayson Allman and Yousef Eddin  
+- Samuel McClure, Taylor Foster, Jayson Allman and Yousef Eddin
+
+## Approach to the Business Problem
+
+### 1. Business Problem
+
+IC3 publishes valuable fraud intelligence, but the reports are long, text-heavy, and difficult to compare over time.
+Organizations need a centralized, automated way to understand:
+
+- What types of fraud are increasing?
+- Which keywords are appearing more often?
+- Are certain threats clustering together?
+- What does the narrative of cybercrime look like over a given time period?
+
+### 2. Our Approach
+
+We created an automated pipeline that:
+
+- Scrapes IC3 webpages and PDFs
+- Extracts unique keywords and fraud types using regex + dictionaries
+- Stores cleaned data in Supabase
+- Runs clustering + semantic search using embeddings
+- Generates AI summaries for each selected time range
+- Visualizes trends through an interactive Streamlit dashboard
 
 ## Project Summary
 This project automates the collection, analysis, and summarization of industry reports from IC3, enabling anyone to track trends, detect emerging threats, and generate actionable insights efficiently.
